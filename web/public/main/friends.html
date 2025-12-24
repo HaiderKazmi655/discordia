@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<!-- Migrated from main/friends.html -->
+<html lang="en" data-theme="neo">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DcTalk • Friends</title>
+    <link rel="stylesheet" href="/main/theme.css">
+    <style>
+        :root { --bg-900:#1f2124; --bg-800:#282b30; --bg-700:#30343a; --text:#e6e7e8; --muted:#b2b4b7; --brand:#5865F2; --ring:#2a2c31; }
+        html, body { height: 100%; margin: 0; }
+        body { background: radial-gradient(1000px 600px at 50% -20%, rgba(88,101,242,.08), transparent 50%), var(--bg-900); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .wrap { max-width: 980px; margin: 26px auto; padding: 0 12px; }
+        .topbar { position: fixed; top: 0; left: 0; right: 0; height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; background: rgba(40,43,48,.72); backdrop-filter: blur(6px); border-bottom: 1px solid var(--ring); z-index: 20; }
+        .brand { font-weight: 900; letter-spacing: .3px; }
+        .nav-links { display: flex; gap: 8px; }
+        .link { color: #fff; text-decoration: none; background: #40444b; padding: 8px 12px; border-radius: 10px; font-weight: 700; }
+        .link.active { background: var(--brand); }
+        .user-nav { display: flex; align-items: center; gap: 10px; }
+        .user-avatar { width: 28px; height: 28px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: #40444b; }
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .username { font-weight: 700; }
+        .card { background: var(--bg-800); border: 1px solid var(--ring); border-radius: 16px; padding: 22px; box-shadow: 0 16px 40px rgba(0,0,0,.35); margin-bottom: 16px; }
+        .subnav { display:flex; align-items:center; gap:8px; padding: 10px 12px; background: var(--bg-800); border: 1px solid var(--ring); border-radius: 12px; position: sticky; top: 72px; z-index: 10; }
+        .subnav a { text-decoration:none; color:#fff; background:#40444b; padding:8px 12px; border-radius:10px; font-weight:700; }
+        .subnav a.active { background: var(--brand); }
+        .subnav .add { background:#57F287; color:#1f2429; }
+        .title { font-weight: 900; font-size: 22px; margin-bottom: 8px; }
+        .row { display: flex; gap: 8px; }
+        .input { flex: 1; background: #3a3e45; color: #fff; border: 1px solid #454a52; border-radius: 10px; padding: 12px; outline: none; }
+        .btn { background: var(--brand); color: #fff; border: none; border-radius: 12px; padding: 12px 14px; font-weight: 800; cursor: pointer; }
+        .list { display: flex; flex-direction: column; gap: 8px; }
+        .item { display: flex; align-items: center; justify-content: space-between; background: var(--bg-700); border-radius: 10px; padding: 12px 14px; }
+        .actions { display: flex; gap: 8px; }
+        .muted { color: var(--muted); font-size: 14px; }
+        .error { color: #ff6b6b; font-size: 14px; }
+        .success { color: #57F287; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <div class="brand">DcTalk</div>
+        <div class="nav-links">
+           <a href="/main/home.html">Home</a>
+           <a href="/main/profile.html">Profile</a>
+           <a href="/main/friends.html">Friends</a>
+           <a href="/main/call.html">Call</a>
+        </div>
+        <div class="user-nav">
+            <div class="user-avatar" id="navAvatar"></div>
+            <div class="username" id="navName"></div>
+            <a class="link" href="/main/home.html" id="logout">Logout</a>
+        </div>
+    </div>
+    <div class="wrap" style="margin-top:72px">
+        <div class="subnav">
+            <a href="/main/friends.html" class="active">Friends</a>
+            <a href="/main/online.html">Online</a>
+            <a href="/main/pending.html">Pending</a>
+            <a href="/main/blocked.html">Blocked</a>
+            <a href="/main/friends.html" class="add">Add Friend</a>
+        </div>
+        <div class="card">
+            <div class="title">Add Friend</div>
+            <div class="row">
+                <input class="input" placeholder="Enter username or display name" id="friendInput" />
+                <button class="btn" id="addFriend">Send Request</button>
+            </div>
+            <div id="addMsg" class="muted"></div>
+        </div>
+        <div class="card">
+            <div class="title">Incoming Requests</div>
+            <div class="list" id="incoming"></div>
+        </div>
+        <div class="card">
+            <div class="title">Outgoing Requests</div>
+            <div class="list" id="outgoing"></div>
+        </div>
+        <div class="card">
+            <div class="title">Friends</div>
+            <div class="list" id="friends"></div>
+        </div>
+    </div>
+    <script src="/main/supabase.js"></script>
+    <script>
+        const USERS_KEY="dc_users"; const CURRENT_KEY="dc_current_user";
+        async function loadUsers(){ try{ const client = await window.initSupabase(); if(client){ const supa = await window.supabaseGetUsers(); if(supa && Object.keys(supa).length>0){ localStorage.setItem(USERS_KEY, JSON.stringify(supa)); return supa; } } const local = localStorage.getItem(USERS_KEY); return local?JSON.parse(local):{}; }catch(e){ return {}; } }
+        async function saveUsers(u){ localStorage.setItem(USERS_KEY, JSON.stringify(u)); const client = await window.initSupabase(); if(client){ const entries = Object.values(u||{}); for(const rec of entries){ await window.supabaseUpsertProfile(rec); } } }
+        function getCurrent(){ return localStorage.getItem(CURRENT_KEY); }
+        const cu=getCurrent(); if(!cu){ location.href="/main/home.html"; }
+        let users={}; let me=null;
+        function ensureDefaults(u){ if(!u) return; if(!Array.isArray(u.friends)) u.friends=[]; if(!Array.isArray(u.incomingRequests)) u.incomingRequests=[]; if(!Array.isArray(u.outgoingRequests)) u.outgoingRequests=[]; if(!Array.isArray(u.blocked)) u.blocked=[]; }
+        ensureDefaults(me); Object.keys(users).forEach(k=>ensureDefaults(users[k]));
+        async function render(){ users=await loadUsers(); me=users[cu]; ensureDefaults(me); Object.keys(users).forEach(k=>ensureDefaults(users[k]));
+            const inc=document.getElementById("incoming"); const out=document.getElementById("outgoing"); const fr=document.getElementById("friends");
+            inc.innerHTML=""; out.innerHTML=""; fr.innerHTML="";
+            const client = await window.initSupabase();
+            if(client){
+                const incoming = await window.supabaseGetIncoming(cu);
+                incoming.forEach(req=>{ const d=document.createElement("div"); d.className="item"; const l=document.createElement("div"); const fromUser=users[req.from.toLowerCase()]||{displayName:req.from}; l.textContent=fromUser.displayName||req.from; const a=document.createElement("div"); a.className="actions"; const ac=document.createElement("button"); ac.className="btn"; ac.textContent="Accept"; ac.onclick=()=>accept(req.id); const dc=document.createElement("button"); dc.className="btn"; dc.textContent="Decline"; dc.onclick=()=>decline(req.id); a.appendChild(ac); a.appendChild(dc); d.appendChild(l); d.appendChild(a); inc.appendChild(d); });
+                const outgoing = await window.supabaseGetOutgoing(cu);
+                outgoing.forEach(req=>{ const d=document.createElement("div"); d.className="item"; const l=document.createElement("div"); const toUser=users[req.to.toLowerCase()]||{displayName:req.to}; l.textContent=toUser.displayName||req.to; const a=document.createElement("div"); a.className="actions"; const cc=document.createElement("button"); cc.className="btn"; cc.textContent="Cancel"; cc.onclick=()=>cancel(req.id); a.appendChild(cc); d.appendChild(l); d.appendChild(a); out.appendChild(d); });
+                const friends = await window.supabaseGetFriends(cu);
+                friends.forEach(u=>{ const d=document.createElement("div"); d.className="item"; const l=document.createElement("div"); const fu=users[u.toLowerCase()]||{displayName:u}; l.textContent=(fu.displayName||u); const a=document.createElement("div"); a.className="actions"; const rm=document.createElement("button"); rm.className="btn"; rm.textContent="Remove"; rm.onclick=()=>removeFriend(u); const bl=document.createElement("button"); bl.className="btn"; bl.textContent="Block"; bl.onclick=()=>blockFriend(u); a.appendChild(rm); a.appendChild(bl); d.appendChild(l); d.appendChild(a); fr.appendChild(d); });
+            } else {
+                (me.incomingRequests||[]).forEach(u=>{ const d=document.createElement("div"); d.className="item"; const l=document.createElement("div"); l.textContent=u; const a=document.createElement("div"); a.className="actions"; const ac=document.createElement("button"); ac.className="btn"; ac.textContent="Accept"; ac.onclick=()=>accept(u); const dc=document.createElement("button"); dc.className="btn"; dc.textContent="Decline"; dc.onclick=()=>decline(u); a.appendChild(ac); a.appendChild(dc); d.appendChild(l); d.appendChild(a); inc.appendChild(d); });
+                (me.outgoingRequests||[]).forEach(u=>{ const d=document.createElement("div"); d.className="item"; const l=document.createElement("div"); l.textContent=u; const a=document.createElement("div"); a.className="actions"; const cc=document.createElement("button"); cc.className="btn"; cc.textContent="Cancel"; cc.onclick=()=>cancel(u); a.appendChild(cc); d.appendChild(l); d.appendChild(a); out.appendChild(d); });
+                (me.friends||[]).forEach(u=>{ const d=document.createElement("div"); d.className="item"; const l=document.createElement("div"); l.textContent=u+(users[u]?" • "+users[u].displayName:""); const a=document.createElement("div"); a.className="actions"; const rm=document.createElement("button"); rm.className="btn"; rm.textContent="Remove"; rm.onclick=()=>removeFriend(u); const bl=document.createElement("button"); bl.className="btn"; bl.textContent="Block"; bl.onclick=()=>blockFriend(u); a.appendChild(rm); a.appendChild(bl); d.appendChild(l); d.appendChild(a); fr.appendChild(d); });
+            }
+        }
+        function findUserId(val){ const v=val.trim().toLowerCase(); if(!v) return null; if(users[v]) return v; for(const k in users){ const u=users[k]; if(u && u.displayName && u.displayName.toLowerCase()===v) return k; } return null; }
+        async function sendRequest(to){
+            try {
+                users = await loadUsers();
+                me = users[cu];
+                ensureDefaults(me);
+                const target=findUserId(to);
+                if(!target) return { ok:false, reason:"User not found" };
+                if(target===cu) return { ok:false, reason:"Cannot add yourself" };
+                if(!me) return { ok:false, reason:"Session missing" };
+                const tu=users[target]; ensureDefaults(tu);
+                const client=await window.initSupabase();
+                if(client){ const r = await window.supabaseSendFriendRequest(cu, target); if(!r.ok) return r; await render(); return { ok:true }; }
+                if((tu?.blocked||[]).includes(cu)) return { ok:false, reason:"You are blocked by this user" };
+                if((me?.friends||[]).includes(target)) return { ok:false, reason:"Already friends" };
+                if((me?.outgoingRequests||[]).includes(target)) return { ok:false, reason:"Request already sent" };
+                if((me?.incomingRequests||[]).includes(target)) return { ok:false, reason:"They already requested you" };
+                me.outgoingRequests.push(target); tu.incomingRequests.push(cu); users[cu]=me; users[target]=tu; await saveUsers(users); return { ok:true };
+            } catch (e) {
+                return { ok:false, reason:"Unexpected error" };
+            }
+        }
+        async function accept(idOrUser){ const client=await window.initSupabase(); if(client){ await window.supabaseAcceptRequest(idOrUser); await render(); return; } me.incomingRequests = me.incomingRequests.filter(x=>x!==idOrUser); me.friends.push(idOrUser); users[idOrUser].outgoingRequests = users[idOrUser].outgoingRequests.filter(x=>x!==cu); users[idOrUser].friends.push(cu); users[cu]=me; await saveUsers(users); await render(); }
+        async function decline(idOrUser){ const client=await window.initSupabase(); if(client){ await window.supabaseDeclineRequest(idOrUser); await render(); return; } me.incomingRequests = me.incomingRequests.filter(x=>x!==idOrUser); users[idOrUser].outgoingRequests = users[idOrUser].outgoingRequests.filter(x=>x!==cu); users[cu]=me; await saveUsers(users); await render(); }
+        async function cancel(idOrUser){ const client=await window.initSupabase(); if(client){ await window.supabaseDeclineRequest(idOrUser); await render(); return; } me.outgoingRequests = me.outgoingRequests.filter(x=>x!==idOrUser); users[idOrUser].incomingRequests = users[idOrUser].incomingRequests.filter(x=>x!==cu); users[cu]=me; await saveUsers(users); await render(); }
+        async function removeFriend(u){ me.friends = me.friends.filter(x=>x!==u); users[u].friends = users[u].friends.filter(x=>x!==cu); users[cu]=me; await saveUsers(users); await render(); }
+        async function blockFriend(u){ if(!me.blocked) me.blocked=[]; if(!users[u].blocked) users[u].blocked=[]; me.blocked.push(u); me.friends = me.friends.filter(x=>x!==u); users[u].friends = users[u].friends.filter(x=>x!==cu); users[cu]=me; await saveUsers(users); await render(); }
+        document.getElementById("addFriend").onclick=async ()=>{
+            const inp=document.getElementById("friendInput");
+            const v=inp.value.trim();
+            const msg=document.getElementById("addMsg");
+            try {
+                msg.textContent="";
+                msg.className="muted";
+                if(!v){ msg.textContent="Enter username or display name"; msg.className="error"; return; }
+                const r=await sendRequest(v);
+                if(r.ok){ msg.textContent="Request sent"; msg.className="success"; inp.value=""; await render(); }
+                else { msg.textContent=r.reason||"Cannot send request"; msg.className="error"; }
+            } catch (e) {
+                msg.textContent="Cannot send request"; msg.className="error";
+            }
+        };
+        document.getElementById("logout").onclick=()=>{ localStorage.removeItem(CURRENT_KEY); };
+        async function boot(){
+            users = await loadUsers();
+            me = users[cu];
+            ensureDefaults(me); Object.keys(users).forEach(k=>ensureDefaults(users[k]));
+            const navName=document.getElementById("navName"); const navAvatar=document.getElementById("navAvatar");
+            if(me){ navName.textContent=me.displayName; if(me.avatar){ const img=document.createElement("img"); img.src=me.avatar; navAvatar.appendChild(img); } else { navAvatar.textContent=me.displayName[0]; } }
+            const status=document.createElement("span"); status.style.marginLeft="8px"; status.style.fontSize="12px"; status.style.color="#aab0c0"; status.id="syncStatus"; status.textContent=(window.dcSupabase?"Cloud Sync On":"Local Only"); document.querySelector(".user-nav").appendChild(status);
+            await render();
+            if(window.dcSupabase){
+                const ch = await window.supabaseSubscribeFriendRequests(()=>render());
+                window.frChannel = ch;
+            }
+        }
+        boot();
+    </script>
+</body>
+</html>

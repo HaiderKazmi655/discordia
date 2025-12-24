@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<!-- Migrated from main/profile.html -->
+<html lang="en" data-theme="neo">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DcTalk • Profile</title>
+    <link rel="stylesheet" href="/main/theme.css">
+    <style>
+        :root { --bg-900:#1f2124; --bg-800:#282b30; --bg-700:#30343a; --text:#e6e7e8; --muted:#b2b4b7; --brand:#5865F2; --ring:#2a2c31; }
+        html, body { height: 100%; margin: 0; }
+        body { background: radial-gradient(1000px 600px at 85% -10%, rgba(88,101,242,.08), transparent 50%), var(--bg-900); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: grid; place-items: center; }
+        .card { width: 520px; background: var(--bg-800); border: 1px solid var(--ring); border-radius: 16px; padding: 22px; box-shadow: 0 16px 40px rgba(0,0,0,.35); }
+        .title { font-weight: 900; font-size: 22px; margin-bottom: 8px; }
+        .field { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; }
+        .input { background: #3a3e45; color: #fff; border: 1px solid #454a52; border-radius: 10px; padding: 12px; outline: none; }
+        .btn { background: var(--brand); color: #fff; border: none; border-radius: 12px; padding: 12px; font-weight: 800; cursor: pointer; width: 100%; }
+        .topbar { position: fixed; top: 0; left: 0; right: 0; height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; background: rgba(40,43,48,.72); backdrop-filter: blur(6px); border-bottom: 1px solid var(--ring); z-index: 20; }
+        .brand { font-weight: 900; letter-spacing: .3px; }
+        .nav-links { display: flex; gap: 8px; }
+        .link { color: #fff; text-decoration: none; background: #40444b; padding: 8px 12px; border-radius: 10px; font-weight: 700; }
+        .link.active { background: var(--brand); }
+        .user-nav { display: flex; align-items: center; gap: 10px; }
+        .user-avatar { width: 28px; height: 28px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: #40444b; }
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .username { font-weight: 700; }
+        .muted { color: var(--muted); font-size: 14px; }
+        .success { color: #57F287; font-size: 14px; }
+        .error { color: #ff6b6b; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <div class="brand">DcTalk</div>
+        <div class="nav-links">
+            <a class="link" href="/main/index.html">App</a>
+            <a class="link" href="/main/dm.html">DMs</a>
+            <a class="link" href="/main/friends.html">Friends</a>
+            <a class="link active" href="/main/profile.html">Profile</a>
+            <a class="link" href="/main/call.html">Calls</a>
+        </div>
+        <div class="user-nav">
+            <div class="user-avatar" id="navAvatar"></div>
+            <div class="username" id="navName"></div>
+            <a class="link" href="/main/home.html" id="logout">Logout</a>
+        </div>
+    </div>
+    <div class="card">
+        <div class="title">Edit Profile</div>
+        <div class="muted" id="userLabel"></div>
+        <div class="field"><label>Display Name</label><input class="input" id="display"></div>
+        <div class="field"><label>Name Color</label><input class="input" type="color" id="nameColor"></div>
+        <div class="field"><label>Animated Name</label><input type="checkbox" id="animated"></div>
+        <div class="field"><label>Status (Online)</label><input type="checkbox" id="online"></div>
+        <div class="field"><label>Profile Picture</label><input class="input" type="file" id="avatar" accept="image/*"></div>
+        <div class="field"><img id="preview" style="width:120px;height:120px;border-radius:50%;object-fit:cover;display:none"/></div>
+        <div class="field"><label>New Password (optional)</label><input class="input" type="password" id="password"></div>
+        <button class="btn" id="save">Save Changes</button>
+        <div id="msg" class="muted"></div>
+    </div>
+    <script>
+        const USERS_KEY="dc_users"; const CURRENT_KEY="dc_current_user"; const enc=new TextEncoder();
+        function loadUsers(){ try{ const r=localStorage.getItem(USERS_KEY); return r?JSON.parse(r):{}; }catch(e){ return {}; } }
+        function saveUsers(u){ localStorage.setItem(USERS_KEY, JSON.stringify(u)); }
+        function getCurrent(){ return localStorage.getItem(CURRENT_KEY); }
+        async function hash(s){ const b=await crypto.subtle.digest("SHA-256", enc.encode(s)); return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,"0")).join(""); }
+        const cu=getCurrent(); if(!cu){ location.href="/main/home.html"; }
+        const users=loadUsers(); const me=users[cu];
+        const navName=document.getElementById("navName"); const navAvatar=document.getElementById("navAvatar"); if(me){ navName.textContent=me.displayName; if(me.avatar){ const img=document.createElement("img"); img.src=me.avatar; navAvatar.appendChild(img); } else { navAvatar.textContent=me.displayName[0]; } }
+        document.getElementById("userLabel").textContent = me ? (me.username+" • "+me.displayName) : "";
+        document.getElementById("display").value = me ? me.displayName : "";
+        document.getElementById("nameColor").value = me && me.nameColor ? me.nameColor : "#ffffff";
+        document.getElementById("animated").checked = !!(me && me.animatedName);
+        document.getElementById("online").checked = !!(me && (me.online!==false));
+        if(me && me.avatar){ const p=document.getElementById("preview"); p.src=me.avatar; p.style.display="block"; }
+        document.getElementById("save").onclick = async ()=>{
+            const d=document.getElementById("display").value.trim();
+            const c=document.getElementById("nameColor").value;
+            const an=document.getElementById("animated").checked;
+            const p=document.getElementById("password").value;
+            const msg=document.getElementById("msg");
+            msg.textContent="";
+            if(!d){ msg.textContent="Display name required"; msg.className="error"; return; }
+            me.displayName=d;
+            me.nameColor=c;
+            me.animatedName=an;
+            if(p){ me.password=await hash(p); }
+            if(me){ const on=document.getElementById("online").checked; me.online = !!on; }
+            for(const k in users){ if(k!==cu && users[k] && users[k].displayName && users[k].displayName.toLowerCase()===d.toLowerCase()){ msg.textContent="Display name already taken"; msg.className="error"; return; } }
+            users[cu]=me; saveUsers(users);
+            document.getElementById("password").value="";
+            msg.textContent="Saved"; msg.className="success";
+        };
+        document.getElementById("avatar").onchange = async (e)=>{
+            const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ me.avatar=r.result; users[cu]=me; saveUsers(users); const p=document.getElementById("preview"); p.src=me.avatar; p.style.display="block"; };
+            r.readAsDataURL(f);
+        };
+        document.getElementById("logout").onclick = ()=>{ localStorage.removeItem(CURRENT_KEY); };
+    </script>
+</body>
+</html>

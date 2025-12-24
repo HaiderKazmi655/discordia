@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<!-- Migrated from main/call.html -->
+<html lang="en" data-theme="neo">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DcTalk • Calls</title>
+    <link rel="stylesheet" href="/main/theme.css">
+    <style>
+        :root { --bg-900:#1f2124; --bg-800:#282b30; --bg-700:#30343a; --text:#e6e7e8; --muted:#b2b4b7; --brand:#5865F2; --ring:#2a2c31; }
+        html, body { height: 100%; margin: 0; }
+        body { background: radial-gradient(1000px 600px at 60% -20%, rgba(88,101,242,.08), transparent 50%), var(--bg-900); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .wrap { max-width: 980px; margin: 82px auto 26px; padding: 0 12px; }
+        .topbar { position: fixed; top: 0; left: 0; right: 0; height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; background: rgba(40,43,48,.72); backdrop-filter: blur(6px); border-bottom: 1px solid var(--ring); z-index: 20; }
+        .brand { font-weight: 900; letter-spacing: .3px; }
+        .nav-links { display: flex; gap: 8px; }
+        .link { color: #fff; text-decoration: none; background: #40444b; padding: 8px 12px; border-radius: 10px; font-weight: 700; }
+        .link.active { background: var(--brand); }
+        .user-nav { display: flex; align-items: center; gap: 10px; }
+        .user-avatar { width: 28px; height: 28px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: #40444b; }
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .username { font-weight: 700; }
+        .card { background: var(--bg-800); border: 1px solid var(--ring); border-radius: 16px; padding: 22px; box-shadow: 0 16px 40px rgba(0,0,0,.35); margin-bottom: 16px; }
+        .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .input { flex: 1; min-width: 240px; background: #3a3e45; color: #fff; border: 1px solid #454a52; border-radius: 10px; padding: 12px; outline: none; }
+        .btn { background: var(--brand); color: #fff; border: none; border-radius: 12px; padding: 12px 14px; font-weight: 800; cursor: pointer; position: relative; z-index: 1; }
+        .select { background: #3a3e45; color: #fff; border: 1px solid #454a52; border-radius: 10px; padding: 12px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(260px,1fr)); gap: 12px; }
+        .tile { background: #000; border-radius: 12px; overflow:hidden; position: relative; }
+        .tile video { width: 100%; height: 100%; }
+        .tile-footer { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.5); color:#fff; padding: 6px 8px; display:flex; align-items:center; gap:8px; }
+        .tile-avatar { width: 22px; height: 22px; border-radius: 50%; overflow:hidden; flex: 0 0 22px; }
+        .tile-avatar img { width:100%; height:100%; object-fit:cover; }
+        .meter { width: 160px; height: 10px; background: #3a3e45; border-radius: 20px; overflow: hidden; }
+        .bar { height: 100%; width: 0%; background: #57F287; }
+        .muted { color: var(--muted); font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <div class="brand">DcTalk</div>
+        <div class="nav-links">
+            <a class="link" href="/main/index.html">App</a>
+            <a class="link" href="/main/dm.html">DMs</a>
+            <a class="link" href="/main/friends.html">Friends</a>
+            <a class="link" href="/main/profile.html">Profile</a>
+            <a class="link active" href="/main/call.html">Calls</a>
+        </div>
+        <div class="user-nav">
+            <div class="user-avatar" id="navAvatar"></div>
+            <div class="username" id="navName"></div>
+            <a class="link" href="/main/home.html" id="logout">Logout</a>
+        </div>
+    </div>
+    <div class="wrap">
+        <div class="card">
+            <div class="row">
+                <input class="input" id="room" placeholder="Enter room name" />
+                <select class="select" id="mic"></select>
+                <label><input type="checkbox" id="echo" checked> Echo Cancel</label>
+                <label><input type="checkbox" id="noise" checked> Noise Suppress</label>
+                <label><input type="checkbox" id="gain" checked> Auto Gain</label>
+                <button class="btn" id="join">Join</button>
+                <button class="btn" id="leave">Leave</button>
+                <button class="btn" id="mute">Mute</button>
+                <button class="btn" id="share">Share Screen</button>
+                <div class="meter"><div class="bar" id="level"></div></div>
+            </div>
+            <div class="muted" id="status"></div>
+        </div>
+        <div class="card">
+            <div class="grid" id="videos"></div>
+        </div>
+    </div>
+    <script>
+        const USERS_KEY="dc_users"; const CURRENT_KEY="dc_current_user"; const cu=localStorage.getItem(CURRENT_KEY); if(!cu){ location.href="/main/home.html"; }
+        const users=JSON.parse(localStorage.getItem(USERS_KEY)||"{}"); const me=users[cu];
+        const navName=document.getElementById("navName"); const navAvatar=document.getElementById("navAvatar"); if(me){ navName.textContent=me.displayName; if(me.avatar){ const img=document.createElement("img"); img.src=me.avatar; navAvatar.appendChild(img); } else { navAvatar.textContent=me.displayName[0]; } }
+        let bc=null; let room=null; let clientId=null; let pcMap=new Map(); let localStream=null; let screenStream=null; let audioCtx=null; let analyser=null; let levelEl=null;
+        function setStatus(s){ document.getElementById("status").textContent=s; }
+        function createPC(peerId){ const pc=new RTCPeerConnection({iceServers:[{urls:["stun:stun.l.google.com:19302"]}]}); pc.onicecandidate=e=>{ if(e.candidate) bc.postMessage({t:"ice", from:clientId, to:peerId, c:e.candidate}); };
+            pc.ontrack=e=>{ const v=ensureVideo(peerId); v.srcObject=e.streams[0]; v.play(); };
+            if(localStream){ localStream.getTracks().forEach(track=>{
+                const tx=pc.addTransceiver(track, {direction:"sendrecv"});
+                const caps=RTCRtpSender.getCapabilities("audio");
+                if(caps && tx.setCodecPreferences){ const opus=caps.codecs.find(c=>c.mimeType.toLowerCase()==="audio/opus"); if(opus){ tx.setCodecPreferences([opus, ...caps.codecs.filter(c=>c.mimeType.toLowerCase()!=="audio/opus")]); } }
+            }); }
+            if(screenStream){ screenStream.getTracks().forEach(t=>pc.addTrack(t, screenStream)); }
+            setAudioBitrate(pc, 64000);
+            pcMap.set(peerId, pc); return pc; }
+        function setAudioBitrate(pc, bps){ pc.getSenders().forEach(s=>{ if(s.track && s.track.kind==="audio"){ const p=s.getParameters(); p.encodings=p.encodings||[{}]; p.encodings[0].maxBitrate=bps; s.setParameters(p); } }); }
+        const peerInfo=new Map();
+        function ensureVideo(id){ let wrap=document.getElementById("vwrap-"+id); if(!wrap){ wrap=document.createElement("div"); wrap.className="tile"; wrap.id="vwrap-"+id; const el=document.createElement("video"); el.id="v-"+id; el.autoplay=true; el.playsInline=true; wrap.appendChild(el); const foot=document.createElement("div"); foot.className="tile-footer"; const av=document.createElement("div"); av.className="tile-avatar"; const info=peerInfo.get(id); const u=id===clientId?me:(info&&users[info.userId]); if(u&&u.avatar){ const img=document.createElement("img"); img.src=u.avatar; av.appendChild(img); } else { av.textContent=u?(u.displayName?u.displayName[0]:info?.name[0]||"?"):"?"; } const nm=document.createElement("div"); nm.textContent=id===clientId?(me.displayName+" (You)"):(info?.name||id); foot.appendChild(av); foot.appendChild(nm); wrap.appendChild(foot); document.getElementById("videos").appendChild(wrap); } return document.getElementById("v-"+id); }
+        async function join(){ if(room) return; room=document.getElementById("room").value.trim(); if(!room) return; clientId=crypto.randomUUID(); bc=new BroadcastChannel("rtc-"+room);
+            bc.onmessage=async ({data})=>{ const d=data; if(!d||d.from===clientId) return; if(d.t==="hello"){ if(d.name||d.userId){ peerInfo.set(d.from,{name:d.name,userId:d.userId}); } const pc=createPC(d.from); const offer=await pc.createOffer(); await pc.setLocalDescription(offer); bc.postMessage({t:"offer", from:clientId, to:d.from, s:offer}); }
+                else if(d.t==="offer" && d.to===clientId){ if(d.name||d.userId){ peerInfo.set(d.from,{name:d.name,userId:d.userId}); } const pc=createPC(d.from); await pc.setRemoteDescription(new RTCSessionDescription(d.s)); const ans=await pc.createAnswer(); await pc.setLocalDescription(ans); bc.postMessage({t:"answer", from:clientId, to:d.from, s:ans}); }
+                else if(d.t==="answer" && d.to===clientId){ const pc=pcMap.get(d.from); if(pc) await pc.setRemoteDescription(new RTCSessionDescription(d.s)); }
+                else if(d.t==="ice" && d.to===clientId){ const pc=pcMap.get(d.from); if(pc) try{ await pc.addIceCandidate(new RTCIceCandidate(d.c)); }catch(e){} }
+                else if(d.t==="bye"){ const pc=pcMap.get(d.from); if(pc){ pc.close(); pcMap.delete(d.from); const w=document.getElementById("vwrap-"+d.from); if(w) w.remove(); } }
+            };
+            await setupAudioStream(); ensureVideo(clientId).srcObject=localStream; startLevelMeter(); setStatus("Joined "+room); bc.postMessage({t:"hello", from:clientId, name:me.displayName, userId: cu}); }
+        function leave(){ if(!room) return; pcMap.forEach(pc=>pc.close()); pcMap.clear(); if(bc){ bc.postMessage({t:"bye", from:clientId}); bc.close(); } bc=null; room=null; clientId=null; setStatus("Left room"); }
+        async function toggleMute(){ if(!localStream) return; const a=localStream.getAudioTracks()[0]; if(!a) return; a.enabled=!a.enabled; setStatus(a.enabled?"Mic on":"Mic muted"); }
+        async function share(){ if(!room) return; try{ screenStream=await navigator.mediaDevices.getDisplayMedia({video:true, audio:false}); screenStream.getTracks().forEach(t=>{ pcMap.forEach(pc=>pc.addTrack(t, screenStream)); }); ensureVideo(clientId+"-screen").srcObject=screenStream; screenStream.getVideoTracks()[0].onended=()=>{ const v=document.getElementById("v-"+clientId+"-screen"); if(v&&v.parentElement) v.parentElement.remove(); screenStream=null; }; }catch(e){}
+        }
+        document.getElementById("join").onclick=join; document.getElementById("leave").onclick=leave; document.getElementById("mute").onclick=toggleMute; document.getElementById("share").onclick=share;
+        document.getElementById("logout").onclick=()=>{ localStorage.removeItem(CURRENT_KEY); };
+        levelEl=document.getElementById("level");
+        async function populateMics(){ const sel=document.getElementById("mic"); sel.innerHTML=""; const devs=await navigator.mediaDevices.enumerateDevices(); const mics=devs.filter(d=>d.kind==="audioinput"); mics.forEach(d=>{ const o=document.createElement("option"); o.value=d.deviceId; o.textContent=d.label||("Mic "+(sel.options.length+1)); sel.appendChild(o); }); }
+        async function setupAudioStream(){ const echo=document.getElementById("echo").checked; const noise=document.getElementById("noise").checked; const gain=document.getElementById("gain").checked; const deviceId=document.getElementById("mic").value||undefined; if(localStream){ localStream.getTracks().forEach(t=>t.stop()); }
+            localStream=await navigator.mediaDevices.getUserMedia({audio:{deviceId: deviceId?{exact:deviceId}:undefined, echoCancellation:{ideal:echo}, noiseSuppression:{ideal:noise}, autoGainControl:{ideal:gain}, channelCount:1, sampleRate:48000}});
+            pcMap.forEach(pc=>{ localStream.getTracks().forEach(nt=>{ const sender=pc.getSenders().find(s=>s.track && s.track.kind==="audio"); if(sender) sender.replaceTrack(nt); else pc.addTrack(nt, localStream); }); setAudioBitrate(pc, 64000); }); }
+        function startLevelMeter(){ if(!localStream) return; if(!audioCtx){ audioCtx=new (window.AudioContext||window.webkitAudioContext)(); }
+            analyser=audioCtx.createAnalyser(); analyser.fftSize=512; const src=audioCtx.createMediaStreamSource(localStream); src.connect(analyser); const buf=new Uint8Array(analyser.fftSize);
+            const tick=()=>{ analyser.getByteTimeDomainData(buf); let sum=0; for(let i=0;i<buf.length;i++){ const v=(buf[i]-128)/128; sum+=v*v; } const rms=Math.sqrt(sum/buf.length); const pct=Math.min(100, Math.max(0, Math.round(rms*140))); levelEl.style.width=pct+"%"; requestAnimationFrame(tick); };
+            tick(); }
+        populateMics();
+        document.getElementById("mic").onchange=async ()=>{ await setupAudioStream(); startLevelMeter(); };
+        document.getElementById("echo").onchange=async ()=>{ await setupAudioStream(); };
+        document.getElementById("noise").onchange=async ()=>{ await setupAudioStream(); };
+        document.getElementById("gain").onchange=async ()=>{ await setupAudioStream(); };
+    </script>
+</body>
+</html>

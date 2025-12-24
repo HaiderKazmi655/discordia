@@ -1,0 +1,119 @@
+/* Neo-futuristic Discord-like theme */
+html[data-theme="neo"] {
+  --bg-900:#0f1115;
+  --bg-800:#151821;
+  --bg-700:#1a1f2b;
+  --glass:#161a24cc;
+  --text:#e8eaf1;
+  --muted:#aab0c0;
+  --brand:#7a8cff;
+  --brand-700:#5c6bf2;
+  --ring:#23283a;
+  --accent:#00e5ff;
+  --success:#57F287;
+  --danger:#ff6b6b;
+  --shadow:0 18px 44px rgba(0,0,0,.45);
+  --radius:14px;
+}
+
+html[data-theme="neo"] body {
+  background:
+    radial-gradient(1200px 700px at 20% -10%, rgba(122,140,255,.12), transparent 50%),
+    radial-gradient(900px 540px at 80% -20%, rgba(0,229,255,.08), transparent 50%),
+    var(--bg-900);
+  color: var(--text);
+  font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  text-rendering: optimizeLegibility;
+}
+
+/* Decorative background illustrations */
+html[data-theme="neo"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    url('/globe.svg'),
+    url('/window.svg');
+  background-repeat: no-repeat, no-repeat;
+  background-position: 6% 82%, 94% 86%;
+  background-size: 280px, 240px;
+  opacity: .12;
+  z-index: -1;
+}
+
+/* Top navigation */
+html[data-theme="neo"] .topbar {
+  height: 64px;
+  background: linear-gradient(180deg, rgba(18,22,35,.7), rgba(18,22,35,.55));
+  backdrop-filter: blur(10px) saturate(120%);
+  border-bottom: 1px solid var(--ring);
+}
+html[data-theme="neo"] .brand { font-weight: 900; letter-spacing: .3px; }
+html[data-theme="neo"] .nav-links { display:flex; gap:10px; }
+html[data-theme="neo"] .link {
+  background: #2a3040;
+  color: #fff;
+  border: 1px solid #343b4f;
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-weight: 800;
+  box-shadow: inset 0 -1px 0 rgba(255,255,255,.06);
+}
+html[data-theme="neo"] .link.active { background: var(--brand); border-color: var(--brand); }
+
+/* Cards and containers */
+html[data-theme="neo"] .card {
+  background: var(--glass);
+  border: 1px solid var(--ring);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+html[data-theme="neo"] .channels, 
+html[data-theme="neo"] .members, 
+html[data-theme="neo"] .chat, 
+html[data-theme="neo"] .sidebar {
+  background: var(--bg-800);
+  border-color: var(--ring);
+}
+
+/* Inputs and buttons */
+html[data-theme="neo"] .input, html[data-theme="neo"] .select {
+  background: #23283a;
+  color: #fff;
+  border: 1px solid #30364b;
+  border-radius: var(--radius);
+}
+html[data-theme="neo"] .btn, html[data-theme="neo"] .send {
+  background: linear-gradient(180deg, var(--brand), var(--brand-700));
+  color: #fff;
+  border: 0;
+  border-radius: var(--radius);
+  font-weight: 900;
+  box-shadow: 0 8px 24px rgba(122,140,255,.35);
+}
+html[data-theme="neo"] .btn:hover, html[data-theme="neo"] .send:hover { filter: brightness(1.06); }
+html[data-theme="neo"] .error { color: var(--danger); }
+html[data-theme="neo"] .success { color: var(--success); }
+
+/* Chat bubbles */
+html[data-theme="neo"] .bubble { background: #1d2232; border-radius: var(--radius); box-shadow: 0 1px 0 rgba(0,0,0,.3); }
+html[data-theme="neo"] .message .name { color: #fff; }
+
+/* Tiles */
+html[data-theme="neo"] .tile { border-radius: var(--radius); box-shadow: var(--shadow); }
+html[data-theme="neo"] .tile-footer { backdrop-filter: blur(6px); }
+
+/* Server dots */
+html[data-theme="neo"] .server { box-shadow: var(--shadow); }
+html[data-theme="neo"] .server.active { outline: 3px solid var(--accent); }
+
+/* Subnav */
+html[data-theme="neo"] .subnav { background: var(--glass); border-color: var(--ring); }
+html[data-theme="neo"] .subnav a { background:#2a3040; border:1px solid #343b4f; }
+html[data-theme="neo"] .subnav a.active { background: var(--brand); border-color: var(--brand); }
+
+/* Scrollbar */
+html[data-theme="neo"] ::-webkit-scrollbar { width: 10px; height: 10px; }
+html[data-theme="neo"] ::-webkit-scrollbar-thumb { background: #1a1f2b; border-radius: 8px; border: 2px solid #2a3040; }
+html[data-theme="neo"] ::-webkit-scrollbar-track { background: #121625; }

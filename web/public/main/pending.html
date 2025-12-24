@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="neo">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DcTalk • Pending</title>
+  <link rel="stylesheet" href="/main/theme.css">
+  <style>
+    :root { --bg-900:#1f2124; --bg-800:#282b30; --bg-700:#30343a; --text:#e6e7e8; --muted:#b2b4b7; --brand:#5865F2; --ring:#2a2c31; }
+    html, body { height:100%; margin:0; }
+    body { background: var(--bg-900); color: var(--text); font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+    .topbar { position: fixed; top:0; left:0; right:0; height:56px; display:flex; align-items:center; justify-content:space-between; padding:0 16px; background: rgba(40,43,48,.72); backdrop-filter: blur(6px); border-bottom:1px solid var(--ring); z-index:20; }
+    .brand { font-weight:900; letter-spacing:.3px; }
+    .nav-links { display:flex; gap:8px; }
+    .link { color:#fff; text-decoration:none; background:#40444b; padding:8px 12px; border-radius:10px; font-weight:700; }
+    .wrap { max-width:980px; margin:82px auto 26px; padding:0 12px; }
+    .subnav { display:flex; gap:8px; padding:10px 12px; background: var(--bg-800); border:1px solid var(--ring); border-radius:12px; }
+    .subnav a{ text-decoration:none; color:#fff; background:#40444b; padding:8px 12px; border-radius:10px; font-weight:700; }
+    .subnav a.active{ background: var(--brand); }
+    .grid { display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:14px; }
+    .card { background: var(--bg-800); border: 1px solid var(--ring); border-radius: 12px; padding: 12px; }
+    .list { display:flex; flex-direction:column; gap:8px; }
+    .item { display:flex; align-items:center; justify-content:space-between; background: var(--bg-700); border-radius:10px; padding:12px 14px; }
+    .btn { background: var(--brand); color:#fff; border:none; border-radius:10px; padding:8px 12px; font-weight:800; cursor:pointer; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">DcTalk</div>
+    <div class="nav-links">
+      <a class="link" href="/main/index.html">App</a>
+      <a class="link" href="/main/dm.html">DMs</a>
+      <a class="link" href="/main/friends.html">Friends</a>
+      <a class="link" href="/main/profile.html">Profile</a>
+      <a class="link" href="/main/call.html">Calls</a>
+    </div>
+    <div class="nav-links"><a class="link" href="/main/home.html" id="logout">Logout</a></div>
+  </div>
+  <div class="wrap">
+    <div class="subnav">
+      <a href="/main/friends.html">Friends</a>
+      <a href="/main/online.html">Online</a>
+      <a href="/main/pending.html" class="active">Pending</a>
+      <a href="/main/blocked.html">Blocked</a>
+      <a href="/main/friends.html" style="background:#57F287;color:#1f2429;font-weight:900">Add Friend</a>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <div style="font-weight:900; margin-bottom:6px">Incoming</div>
+        <div class="list" id="incoming"></div>
+      </div>
+      <div class="card">
+        <div style="font-weight:900; margin-bottom:6px">Outgoing</div>
+        <div class="list" id="outgoing"></div>
+      </div>
+    </div>
+  </div>
+  <script src="/main/supabase.js"></script>
+  <script>
+    const USERS_KEY="dc_users"; const CURRENT_KEY="dc_current_user";
+    async function loadUsers(){ try{ const client = await window.initSupabase(); if(client){ const supa = await window.supabaseGetUsers(); if(supa && Object.keys(supa).length>0){ localStorage.setItem(USERS_KEY, JSON.stringify(supa)); return supa; } } const local = localStorage.getItem(USERS_KEY); return local?JSON.parse(local):{}; }catch(e){ return {}; } }
+    async function saveUsers(u){ localStorage.setItem(USERS_KEY, JSON.stringify(u)); const client = await window.initSupabase(); if(client){ const entries = Object.values(u||{}); for(const rec of entries){ await window.supabaseUpsertProfile(rec); } } }
+    const cu=localStorage.getItem(CURRENT_KEY); if(!cu){ location.href="/main/home.html"; }
+    let users={}; let me=null;
+    function ensureDefaults(u){ if(!u) return; if(!Array.isArray(u.friends)) u.friends=[]; if(!Array.isArray(u.incomingRequests)) u.incomingRequests=[]; if(!Array.isArray(u.outgoingRequests)) u.outgoingRequests=[]; if(!Array.isArray(u.blocked)) u.blocked=[]; }
+    async function render(){ users=await loadUsers(); me=users[cu]; ensureDefaults(me); Object.keys(users).forEach(k=>ensureDefaults(users[k])); const inc=document.getElementById("incoming"); const out=document.getElementById("outgoing"); inc.innerHTML=""; out.innerHTML="";
+      const client = await window.initSupabase();
+      if(client){
+        const incoming = await window.supabaseGetIncoming(cu);
+        incoming.forEach(req=>{ const d=document.createElement("div"); d.className="item"; const l=document.createElement("div"); const fromUser=users[req.from.toLowerCase()]||{displayName:req.from}; l.textContent=fromUser.displayName||req.from; const a=document.createElement("div"); a.className="actions"; const ac=document.createElement("button"); ac.className="btn"; ac.textContent="Accept"; ac.onclick=()=>accept(req.id); const dc=document.createElement("button"); dc.className="btn"; dc.textContent="Decline"; dc.onclick=()=>decline(req.id); a.appendChild(ac); a.appendChild(dc); d.appendChild(l); d.appendChild(a); inc.appendChild(d); });
+        const outgoing = await window.supabaseGetOutgoing(cu);
+        outgoing.forEach(req=>{ const d=document.createElement("div"); d.className="item"; const l=document.createElement("div"); const toUser=users[req.to.toLowerCase()]||{displayName:req.to}; l.textContent=toUser.displayName||req.to; const a=document.createElement("div"); a.className="actions"; const cc=document.createElement("button"); cc.className="btn"; cc.textContent="Cancel"; cc.onclick=()=>cancel(req.id); a.appendChild(cc); d.appendChild(l); d.appendChild(a); out.appendChild(d); });
+      } else {
+        (me.incomingRequests||[]).forEach(u=>{ const d=document.createElement("div"); d.className="item"; const l=document.createElement("div"); l.textContent=u; const a=document.createElement("div"); const ac=document.createElement("button"); ac.className="btn"; ac.textContent="Accept"; ac.onclick=()=>accept(u); const dc=document.createElement("button"); dc.className="btn"; dc.textContent="Decline"; dc.onclick=()=>decline(u); a.appendChild(ac); a.appendChild(dc); d.appendChild(l); d.appendChild(a); inc.appendChild(d); });
+        (me.outgoingRequests||[]).forEach(u=>{ const d=document.createElement("div"); d.className="item"; const l=document.createElement("div"); l.textContent=u; const a=document.createElement("div"); const cc=document.createElement("button"); cc.className="btn"; cc.textContent="Cancel"; cc.onclick=()=>cancel(u); a.appendChild(cc); d.appendChild(l); d.appendChild(a); out.appendChild(d); });
+      }
+    }
+    async function accept(idOrUser){ const client=await window.initSupabase(); if(client){ await window.supabaseAcceptRequest(idOrUser); await render(); return; } ensureDefaults(users[idOrUser]); me.incomingRequests = me.incomingRequests.filter(x=>x!==idOrUser); me.friends.push(idOrUser); users[idOrUser].outgoingRequests = (users[idOrUser].outgoingRequests||[]).filter(x=>x!==cu); users[idOrUser].friends.push(cu); users[cu]=me; await saveUsers(users); await render(); }
+    async function decline(idOrUser){ const client=await window.initSupabase(); if(client){ await window.supabaseDeclineRequest(idOrUser); await render(); return; } ensureDefaults(users[idOrUser]); me.incomingRequests = me.incomingRequests.filter(x=>x!==idOrUser); users[idOrUser].outgoingRequests = (users[idOrUser].outgoingRequests||[]).filter(x=>x!==cu); users[cu]=me; await saveUsers(users); await render(); }
+    async function cancel(idOrUser){ const client=await window.initSupabase(); if(client){ await window.supabaseDeclineRequest(idOrUser); await render(); return; } ensureDefaults(users[idOrUser]); me.outgoingRequests = me.outgoingRequests.filter(x=>x!==idOrUser); users[idOrUser].incomingRequests = (users[idOrUser].incomingRequests||[]).filter(x=>x!==cu); users[cu]=me; await saveUsers(users); await render(); }
+    document.getElementById("logout").onclick=()=>{ localStorage.removeItem(CURRENT_KEY); };
+    async function boot(){ users = await loadUsers(); me = users[cu]; ensureDefaults(me); Object.keys(users).forEach(k=>ensureDefaults(users[k])); const bar=document.querySelector('.topbar .nav-links'); const st=document.createElement('span'); st.style.marginLeft='8px'; st.style.fontSize='12px'; st.style.color='#aab0c0'; st.textContent=(window.dcSupabase?"Cloud Sync On":"Local Only"); bar.appendChild(st); await render(); if(window.dcSupabase){ const ch = await window.supabaseSubscribeFriendRequests(()=>render()); window.pendingChannel = ch; } }
+    boot();
+  </script>
+</body>
+</html>

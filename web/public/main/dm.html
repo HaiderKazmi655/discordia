@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<!-- Migrated from main/dm.html -->
+<html lang="en" data-theme="neo">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DcTalk • Direct Messages</title>
+    <link rel="stylesheet" href="/main/theme.css">
+    <style>
+        :root { --bg-900:#1f2124; --bg-800:#282b30; --bg-700:#30343a; --text:#e6e7e8; --muted:#b2b4b7; --brand:#5865F2; --ring:#2a2c31; }
+        html, body { height: 100%; margin: 0; }
+        body { background: var(--bg-900); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .topbar { position: fixed; top: 0; left: 0; right: 0; height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; background: rgba(40,43,48,.72); backdrop-filter: blur(6px); border-bottom: 1px solid var(--ring); z-index: 20; }
+        .brand { font-weight: 900; letter-spacing: .3px; }
+        .nav-links { display: flex; gap: 8px; }
+        .link { color: #fff; text-decoration: none; background: #40444b; padding: 8px 12px; border-radius: 10px; font-weight: 700; }
+        .link.active { background: var(--brand); }
+        .user-nav { display: flex; align-items: center; gap: 10px; }
+        .user-avatar { width: 28px; height: 28px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: #40444b; }
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .username { font-weight: 700; }
+        .app { display: grid; grid-template-columns: 280px 1fr; height: 100vh; }
+        .sidebar { background: var(--bg-800); border-right: 1px solid var(--ring); display: flex; flex-direction: column; }
+        .sidebar-header { padding: 14px; font-weight: 900; border-bottom: 1px solid var(--ring); }
+        .dm-list { padding: 10px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+        .dm-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; cursor: pointer; color: var(--muted); }
+        .dm-item:hover, .dm-item.active { background: #40444b; color: #fff; }
+        .avatar { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; }
+        .avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .chat { background: var(--bg-700); display: grid; grid-template-rows: 56px 1fr auto; }
+        .chat-header { display: flex; align-items: center; gap: 12px; padding: 0 18px; border-bottom: 1px solid var(--ring); font-weight: 900; }
+        .messages { overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+        .message { display: grid; grid-template-columns: 42px 1fr; gap: 12px; }
+        .bubble { background: var(--bg-800); border-radius: 12px; padding: 12px 14px; }
+        .bubble-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+        .name { font-weight: 700; color: #fff; }
+        .composer { padding: 14px; border-top: 1px solid var(--ring); display: flex; gap: 10px; }
+        .input { flex: 1; background: #3a3e45; color: #fff; border: 1px solid #454a52; border-radius: 10px; padding: 12px; outline: none; }
+        .send { background: var(--brand); color: #fff; border: none; border-radius: 10px; padding: 0 16px; font-weight: 800; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <div class="brand">DcTalk</div>
+        <div class="nav-links">
+            <a class="link" href="/main/index.html">App</a>
+            <a class="link active" href="/main/dm.html">DMs</a>
+            <a class="link" href="/main/friends.html">Friends</a>
+            <a class="link" href="/main/profile.html">Profile</a>
+            <a class="link" href="/main/call.html">Calls</a>
+        </div>
+        <div class="user-nav">
+            <div class="user-avatar" id="navAvatar"></div>
+            <div class="username" id="navName"></div>
+            <a class="link" href="/main/home.html" id="logout">Logout</a>
+        </div>
+    </div>
+    <div class="app" style="margin-top:56px">
+        <div class="sidebar">
+            <div class="sidebar-header">Direct Messages</div>
+            <div class="dm-list" id="dmList"></div>
+        </div>
+        <div class="chat">
+            <div class="chat-header" id="dmHeader"></div>
+            <div class="messages" id="dmMessages"></div>
+            <div class="composer">
+                <input class="input" id="dmInput" placeholder="Message" />
+                <button class="send" id="dmSend">Send</button>
+            </div>
+        </div>
+    </div>
+    <script src="/main/supabase.js"></script>
+    <script src="/main/dm_supabase.js"></script>
+    <script>
+        const USERS_KEY="dc_users"; const CURRENT_KEY="dc_current_user"; const cu=localStorage.getItem(CURRENT_KEY); if(!cu){ location.href="/main/home.html"; }
+        const users=JSON.parse(localStorage.getItem(USERS_KEY)||"{}"); const me=users[cu];
+        let current=null; function dmKey(a,b){ const [x,y]=[a,b].sort(); return "dc_dm_"+x+"_"+y; }
+        async function loadDM(a,b){ const cloud = await window.remoteLoadDM(a,b); if(Array.isArray(cloud)) return cloud; try{ const r=localStorage.getItem(dmKey(a,b)); return r?JSON.parse(r):[]; }catch(e){ return []; } }
+        async function saveDM(a,b,msgs){ const ok = await window.remoteSendDM(a,b, msgs[msgs.length-1]); localStorage.setItem(dmKey(a,b), JSON.stringify(msgs)); return ok; }
+        async function renderDMList(){ const list=document.getElementById("dmList"); list.innerHTML=""; let friends=Array.isArray(me.friends)?me.friends:[]; const client=await window.initSupabase(); if(client){ friends = await window.supabaseGetFriends(cu); }
+            if(!friends || friends.length===0){ const m=document.createElement("div"); m.className="dm-item"; m.textContent="No friends yet"; list.appendChild(m); return; }
+            friends.forEach(u=>{ const f=users[(u||'').toLowerCase()]; const it=document.createElement("div"); it.className="dm-item"+(current===u?" active":""); const av=document.createElement("div"); av.className="avatar"; if(f&&f.avatar){ const img=document.createElement("img"); img.src=f.avatar; av.appendChild(img); } else { av.textContent=f?f.displayName[0]:(u?u[0]:'?'); }
+            const label=document.createElement("div"); label.textContent=f?f.displayName:u; it.appendChild(av); it.appendChild(label); it.onclick=()=>openDM(u); list.appendChild(it); }); }
+        async function openDM(u){ current=u; renderDMList(); const f=users[u]; document.getElementById("dmHeader").textContent=f?f.displayName:u; await renderMessages(); if(window.dcSupabase){ if(window.dmChannel){ window.dcSupabase.removeChannel(window.dmChannel); } window.dmChannel = await window.supabaseSubscribeDMs(()=>renderMessages()); } }
+        async function renderMessages(){ const box=document.getElementById("dmMessages"); box.innerHTML=""; const msgs=await loadDM(cu,current); msgs.forEach(m=>{ const row=document.createElement("div"); row.className="message"; const av=document.createElement("div"); av.className="avatar"; const author=users[m.user]; if(author&&author.avatar){ const img=document.createElement("img"); img.src=author.avatar; av.appendChild(img); } else { av.textContent=(author?author.displayName[0]:m.user[0]); }
+            const bubble=document.createElement("div"); bubble.className="bubble"; const head=document.createElement("div"); head.className="bubble-head"; const nm=document.createElement("div"); nm.className="name"; nm.textContent=author?author.displayName:m.user; if(author && author.nameColor){ nm.style.color=author.nameColor; } if(author && author.animatedName){ nm.classList.add("animated"); }
+            const tm=document.createElement("div"); tm.className="time"; tm.textContent=new Date(m.time).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"}); const body=document.createElement("div"); body.textContent=m.text; head.appendChild(nm); head.appendChild(tm); bubble.appendChild(head); bubble.appendChild(body); row.appendChild(av); row.appendChild(bubble); box.appendChild(row); }); box.scrollTop=box.scrollHeight; }
+        async function send(){ const inp=document.getElementById("dmInput"); const t=inp.value.trim(); if(!t||!current) return; const msgs=await loadDM(cu,current); msgs.push({ user: cu, text: t, time: Date.now() }); await saveDM(cu,current,msgs); inp.value=""; await renderMessages(); }
+        document.getElementById("dmSend").onclick=send; document.getElementById("dmInput").addEventListener("keydown", e=>{ if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); send(); } });
+        document.getElementById("logout").onclick=()=>{ localStorage.removeItem(CURRENT_KEY); };
+        const navName=document.getElementById("navName"); const navAvatar=document.getElementById("navAvatar"); if(me){ navName.textContent=me.displayName; if(me.avatar){ const img=document.createElement("img"); img.src=me.avatar; navAvatar.appendChild(img); } else { navAvatar.textContent=me.displayName[0]; } }
+        const bar=document.querySelector('.topbar .nav-links'); const st=document.createElement('span'); st.style.marginLeft='8px'; st.style.fontSize='12px'; st.style.color='#aab0c0'; st.textContent=(window.dcSupabase?"Cloud Sync On":"Local Only"); bar.appendChild(st);
+        renderDMList();
+    </script>
+</body>
+</html>
