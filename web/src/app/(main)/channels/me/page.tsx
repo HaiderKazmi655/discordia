@@ -60,10 +60,26 @@ export default function MePage() {
                 });
             })
             .subscribe();
+        
+        // Global broadcast (all clients listen and filter)
+        const global = supabase
+            .channel('friend_requests_all')
+            .on('broadcast', { event: 'friend_request' }, (payload) => {
+                const req = payload.payload as FriendRequest;
+                if (req.to === user.username || req.from === user.username) {
+                    setFriendRequests(prev => {
+                        const exists = prev.some(r => r.id === req.id);
+                        const next = exists ? prev.map(r => r.id === req.id ? req : r) : [req, ...prev];
+                        return next;
+                    });
+                }
+            })
+            .subscribe();
 
         return () => {
             supabase.removeChannel(channel);
             supabase.removeChannel(direct);
+            supabase.removeChannel(global);
         };
     }, [user, activeTab]);
 
@@ -224,12 +240,12 @@ export default function MePage() {
                              <h2 className="text-white font-bold mb-2 uppercase text-sm">Add Friend</h2>
                              <p className="text-dc-text-muted text-xs mb-4">You can add a friend with their username or display name.</p>
                              <form onSubmit={sendFriendRequest} className="relative">
-                                 <input 
-                                     className="w-full bg-dc-bg-tertiary p-3 rounded-lg text-white outline-none border border-black focus:border-blue-500 transition-colors placeholder-dc-text-muted/50"
-                                     placeholder="You can add a friend with their username."
-                                     value={addFriendInput}
-                                     onChange={e => setAddFriendInput(e.target.value)}
-                                 />
+                                <input 
+                                    className="w-full bg-dc-bg-secondary p-3 rounded-lg text-white placeholder-white/60 outline-none border border-dc-bg-modifier focus:border-blue-500 transition-colors"
+                                    placeholder="You can add a friend with their username."
+                                    value={addFriendInput}
+                                    onChange={e => setAddFriendInput(e.target.value)}
+                                />
                                  <button type="submit" className="absolute right-2 top-2 bg-dc-brand text-white px-4 py-1 rounded text-sm hover:bg-indigo-600 transition-colors disabled:opacity-50" disabled={!addFriendInput.trim()}>
                                      Send Friend Request
                                  </button>
