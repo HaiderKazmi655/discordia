@@ -37,7 +37,7 @@ export default function MePage() {
     const fetchData = async () => {
       // Friend Requests
       const { data: requests } = await supabase
-        .from<FriendRequestRow>("friend_requests")
+        .from("friend_requests")
         .select("*")
         .or(`to.eq.${user.username},from.eq.${user.username}`);
 
@@ -48,16 +48,16 @@ export default function MePage() {
       const friendUsernames = accepted.map(r => (r.from === user.username ? r.to : r.from));
 
       if (friendUsernames.length > 0) {
-        const { data: profiles } = await supabase
-          .from<ProfileRow>("profiles")
-          .select("username, display_name")
+        const { data: users } = await supabase
+          .from("users")
+          .select("username, displayName")
           .in("username", friendUsernames);
 
-        if (profiles) {
+        if (users) {
           setFriends(
-            profiles.map(p => ({
-              username: p.username,
-              displayName: p.display_name ?? p.username,
+            users.map(u => ({
+              username: u.username,
+              displayName: u.displayName ?? u.username,
             }))
           );
         }
@@ -78,13 +78,20 @@ export default function MePage() {
     const normalized = addFriendInput.trim().replace(/^@/, "").toLowerCase();
 
     // Lookup user by username
-    const { data: targetUserArray } = await supabase
-      .from<ProfileRow>("profiles")
-      .select("username, display_name")
-      .ilike("username", normalized)
-      .limit(1);
-
-    const targetUser = targetUserArray?.[0];
+    const { data: byExact } = await supabase
+      .from("users")
+      .select("username, displayName")
+      .eq("username", normalized)
+      .maybeSingle();
+    let targetUser = byExact || null;
+    if (!targetUser) {
+      const { data: byIlike } = await supabase
+        .from("users")
+        .select("username, displayName")
+        .ilike("username", normalized)
+        .limit(1);
+      targetUser = byIlike?.[0] || null;
+    }
 
     if (!targetUser) {
       setStatusMsg("User not found. Check spelling!");
@@ -98,7 +105,7 @@ export default function MePage() {
 
     // Check existing friend requests
     const { data: existingRequests } = await supabase
-      .from<FriendRequestRow>("friend_requests")
+      .from("friend_requests")
       .select("*")
       .or(
         `and(from.eq.${user.username},to.eq.${targetUser.username}),
@@ -114,29 +121,37 @@ export default function MePage() {
     }
 
     // Insert friend request
-    const { error: insertError } = await supabase.from<FriendRequestRow>("friend_requests").insert({
-      id: crypto?.randomUUID?.() || Math.random().toString(36).slice(2),
-      from: user.username,
-      to: targetUser.username,
-      status: "pending",
-    });
+    const { data: newReq, error: insertError } = await supabase
+      .from("friend_requests")
+      .insert({
+        id: crypto?.randomUUID?.() || Math.random().toString(36).slice(2),
+        from: user.username,
+        to: targetUser.username,
+        status: "pending",
+      })
+      .select()
+      .single();
 
     if (insertError) {
       setStatusMsg("Error sending friend request.");
       return;
     }
 
-    setStatusMsg(`Friend request sent to ${targetUser.display_name || targetUser.username}!`);
+    setStatusMsg(`Friend request sent to ${targetUser.displayName || targetUser.username}!`);
     setAddFriendInput("");
-    setFriendRequests(prev => [
-      ...prev,
-      { id: crypto.randomUUID(), from: user.username, to: targetUser.username, status: "pending" },
-    ]);
+    if (newReq) {
+      setFriendRequests(prev => [...prev, newReq]);
+    } else {
+      setFriendRequests(prev => [
+        ...prev,
+        { id: crypto?.randomUUID?.() || Math.random().toString(36).slice(2), from: user.username, to: targetUser.username, status: "pending" },
+      ]);
+    }
   };
 
   // Accept / Decline Request
   const handleRequest = async (id: string, status: "accepted" | "declined") => {
-    await supabase.from<FriendRequestRow>("friend_requests").update({ status }).eq("id", id);
+    await supabase.from("friend_requests").update({ status }).eq("id", id);
     setFriendRequests(prev => prev.map(r => (r.id === id ? { ...r, status } : r)));
   };
 
