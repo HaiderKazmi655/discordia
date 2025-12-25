@@ -59,7 +59,15 @@ export const ChannelSidebar = ({ serverId }: { serverId: string }) => {
               }
           } catch {
               const local = JSON.parse(localStorage.getItem("dc_local_channels") || "{}");
-              setChannels(local[serverId] || []);
+              const list = local[serverId] || [];
+              if (list.length === 0) {
+                  const def = { id: crypto.randomUUID(), server_id: serverId, name: "general", type: "text", created_at: Date.now() };
+                  local[serverId] = [def];
+                  localStorage.setItem("dc_local_channels", JSON.stringify(local));
+                  setChannels(local[serverId]);
+              } else {
+                  setChannels(list);
+              }
           }
       };
       fetchChannels();

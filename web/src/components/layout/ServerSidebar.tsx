@@ -60,9 +60,18 @@ export const ServerSidebar = () => {
         
         {/* Server List */}
         {servers.map(server => (
-             <Link href={`/channels/${server.id}`} key={server.id} className="group relative flex items-center justify-center w-full">
+             <Link href={`/channels/${server.id}`} key={server.id} className="group relative flex items-center justify-center w-full" onClick={(e) => {
+                 try {
+                     const local = JSON.parse(localStorage.getItem("dc_local_channels") || "{}");
+                     const list = local[server.id] || [];
+                     if (list.length > 0) {
+                         e.preventDefault();
+                         router.push(`/channels/${server.id}/${list[0].id}`);
+                     }
+                 } catch {}
+             }}>
                 <div className="absolute left-0 w-[4px] h-[8px] rounded-r-full bg-white opacity-0 group-hover:opacity-100 transition-all group-hover:h-[20px]" />
-                <div className="h-12 w-12 rounded-[24px] group-hover:rounded-[16px] transition-all bg-dc-bg-primary group-hover:bg-dc-brand flex items-center justify-center text-white cursor-pointer overflow-hidden font-bold" title={server.name}>
+                <div className="h-12 w-12 rounded-[24px] group-hover:rounded-[16px] transition-all bg-dc-bg-primary group-hover:bg-dc-brand flex itemscenter justify-center text-white cursor-pointer overflow-hidden font-bold" title={server.name}>
                     {server.icon_url ? <img src={server.icon_url} alt={server.name} className="w-full h-full object-cover" /> : server.name.substring(0, 2).toUpperCase()}
                 </div>
             </Link>
