@@ -9,8 +9,8 @@ import { CreateServerModal } from '@/components/modals/CreateServerModal';
 export const ServerSidebar = () => {
   const { user } = useAuth();
   const router = useRouter();
-  const [servers, setServers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  type ServerLite = { id: string; name: string; icon_url?: string | null };
+  const [servers, setServers] = useState<ServerLite[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   useEffect(() => {
@@ -23,7 +23,7 @@ export const ServerSidebar = () => {
                 .select('server_id, servers(*)')
                 .eq('user_id', user.username);
             if (!error && Array.isArray(data) && data.length > 0) {
-                const userServers = data.map((item: any) => item.servers).filter(Boolean);
+                const userServers = (data as Array<{ servers: ServerLite }>).map((item) => item.servers).filter(Boolean);
                 setServers(userServers);
                 try {
                     localStorage.setItem("dc_local_servers", JSON.stringify(userServers));
@@ -36,7 +36,6 @@ export const ServerSidebar = () => {
             const localServers = JSON.parse(localStorage.getItem("dc_local_servers") || "[]");
             setServers(localServers);
         }
-        setLoading(false);
     };
 
     fetchServers();

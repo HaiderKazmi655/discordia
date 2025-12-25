@@ -8,7 +8,8 @@ import { ServerSettingsModal } from "@/components/modals/ServerSettingsModal";
 import { CreateChannelModal } from "@/components/modals/CreateChannelModal";
 
 export const ChannelSidebar = ({ serverId }: { serverId: string }) => {
-  const [channels, setChannels] = useState<any[]>([]);
+  type ChannelLite = { id: string; server_id: string; name: string; type: "text" | "voice"; created_at?: number };
+  const [channels, setChannels] = useState<ChannelLite[]>([]);
   const [serverName, setServerName] = useState("Server");
   const pathname = usePathname();
   const [showServerSettings, setShowServerSettings] = useState(false);
@@ -34,8 +35,8 @@ export const ChannelSidebar = ({ serverId }: { serverId: string }) => {
                   if (s) setServerName(s.name);
               }
           } catch {
-              const localServers = JSON.parse(localStorage.getItem("dc_local_servers") || "[]");
-              const s = localServers.find((x: any) => x.id === serverId);
+              const localServers: Array<{ id: string; name: string; icon_url?: string | null }> = JSON.parse(localStorage.getItem("dc_local_servers") || "[]");
+              const s = localServers.find((x) => x.id === serverId);
               if (s) setServerName(s.name);
           }
 
@@ -47,21 +48,21 @@ export const ChannelSidebar = ({ serverId }: { serverId: string }) => {
                   .eq('server_id', serverId)
                   .order('created_at', { ascending: true });
               if (!error && Array.isArray(data) && data.length > 0) {
-                  setChannels(data);
+                  setChannels(data as ChannelLite[]);
                   try {
-                      const local = JSON.parse(localStorage.getItem("dc_local_channels") || "{}");
-                      local[serverId] = data;
+                      const local: Record<string, ChannelLite[]> = JSON.parse(localStorage.getItem("dc_local_channels") || "{}");
+                      local[serverId] = data as ChannelLite[];
                       localStorage.setItem("dc_local_channels", JSON.stringify(local));
                   } catch {}
               } else {
-                  const local = JSON.parse(localStorage.getItem("dc_local_channels") || "{}");
+                  const local: Record<string, ChannelLite[]> = JSON.parse(localStorage.getItem("dc_local_channels") || "{}");
                   setChannels(local[serverId] || []);
               }
           } catch {
-              const local = JSON.parse(localStorage.getItem("dc_local_channels") || "{}");
+              const local: Record<string, ChannelLite[]> = JSON.parse(localStorage.getItem("dc_local_channels") || "{}");
               const list = local[serverId] || [];
               if (list.length === 0) {
-                  const def = { id: crypto.randomUUID(), server_id: serverId, name: "general", type: "text", created_at: Date.now() };
+                  const def: ChannelLite = { id: crypto.randomUUID(), server_id: serverId, name: "general", type: "text", created_at: Date.now() };
                   local[serverId] = [def];
                   localStorage.setItem("dc_local_channels", JSON.stringify(local));
                   setChannels(local[serverId]);
@@ -72,32 +73,6 @@ export const ChannelSidebar = ({ serverId }: { serverId: string }) => {
       };
       fetchChannels();
   }, [serverId]);
-
-  const createChannel = async () => {
-      const name = prompt("Enter channel name:");
-      if (!name) return;
-      
-      const typeInput = prompt("Enter type (text/voice):", "text");
-      const type = (typeInput?.toLowerCase() === 'voice') ? 'voice' : 'text';
-
-      try {
-          const { data, error } = await supabase.from('channels').insert({
-              server_id: serverId,
-              name: name.toLowerCase().replace(/\s+/g, '-'), // Discord style
-              type: type
-          }).select().single();
-          if (data && !error) {
-              setChannels([...channels, data]);
-              return;
-          }
-      } catch {}
-
-      const local = JSON.parse(localStorage.getItem("dc_local_channels") || "{}");
-      const ch = { id: crypto.randomUUID(), server_id: serverId, name: name.toLowerCase().replace(/\s+/g, '-'), type, created_at: Date.now() };
-      local[serverId] = [...(local[serverId] || []), ch];
-      localStorage.setItem("dc_local_channels", JSON.stringify(local));
-      setChannels(local[serverId]);
-  };
 
   return (
     <div className="w-60 bg-dc-bg-secondary flex flex-col shrink-0">
