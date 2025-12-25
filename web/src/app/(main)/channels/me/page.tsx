@@ -73,7 +73,7 @@ export default function MePage() {
         .select("username, display_name")
         .in("username", friendUsernames);
 
-      if (profiles) {
+     if (profiles) {
   setFriends(
     profiles.map(p => ({
       username: p.username,
