@@ -47,9 +47,23 @@ export default function MePage() {
             .on('postgres_changes', { event: '*', schema: 'public', table: 'friend_requests', filter: `to=eq.${user.username}` }, () => fetchData())
             .on('postgres_changes', { event: '*', schema: 'public', table: 'friend_requests', filter: `from=eq.${user.username}` }, () => fetchData())
             .subscribe();
+        
+        // Direct broadcast fallback (works even if DB write fails)
+        const direct = supabase
+            .channel(`friend_requests_direct:${user.username}`)
+            .on('broadcast', { event: 'friend_request' }, (payload) => {
+                const req = payload.payload as FriendRequest;
+                setFriendRequests(prev => {
+                    const exists = prev.some(r => r.id === req.id);
+                    const next = exists ? prev.map(r => r.id === req.id ? req : r) : [req, ...prev];
+                    return next;
+                });
+            })
+            .subscribe();
 
         return () => {
             supabase.removeChannel(channel);
+            supabase.removeChannel(direct);
         };
     }, [user, activeTab]);
 
@@ -108,15 +122,32 @@ export default function MePage() {
              return;
         }
 
+        const newId = crypto.randomUUID();
         const { error } = await supabase.from('friend_requests').insert({
-            id: crypto.randomUUID(),
+            id: newId,
             from: user.username,
             to: targetUser.username,
             status: 'pending'
         });
 
         if (error) {
-            setStatusMsg("Error sending request.");
+            // Fallback: realtime broadcast + local cache
+            try {
+                await supabase.channel(`friend_requests_direct:${targetUser.username}`).send({
+                    type: 'broadcast',
+                    event: 'friend_request',
+                    payload: { id: newId, from: user.username, to: targetUser.username, status: 'pending' }
+                });
+                // Cache locally for current user
+                const local = JSON.parse(localStorage.getItem("dc_friend_requests") || "[]");
+                local.unshift({ id: newId, from: user.username, to: targetUser.username, status: 'pending' });
+                localStorage.setItem("dc_friend_requests", JSON.stringify(local));
+                setFriendRequests(prev => [{ id: newId, from: user.username, to: targetUser.username, status: 'pending' }, ...prev]);
+                setStatusMsg(`Friend request sent to ${targetUser.displayName || targetUser.username}!`);
+                setAddFriendInput("");
+            } catch {
+                setStatusMsg("Error sending request.");
+            }
         } else {
             setStatusMsg(`Friend request sent to ${targetUser.displayName || targetUser.username}!`);
             setAddFriendInput("");
@@ -124,7 +155,19 @@ export default function MePage() {
     };
 
     const handleRequest = async (id: string, status: 'accepted' | 'declined') => {
+        const req = friendRequests.find(r => r.id === id);
         await supabase.from('friend_requests').update({ status }).eq('id', id);
+        // Broadcast fallback to notify other user
+        if (req) {
+            const other = req.from === user?.username ? req.to : req.from;
+            try {
+                await supabase.channel(`friend_requests_direct:${other}`).send({
+                    type: 'broadcast',
+                    event: 'friend_request',
+                    payload: { ...req, status }
+                });
+            } catch {}
+        }
         // Refresh
         const { data } = await supabase.from('friend_requests').select('*').or(`to.eq.${user?.username},from.eq.${user?.username}`);
         if(data) setFriendRequests(data);
