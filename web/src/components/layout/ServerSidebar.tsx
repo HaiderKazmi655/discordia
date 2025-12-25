@@ -23,7 +23,7 @@ export const ServerSidebar = () => {
                 .select('server_id, servers(*)')
                 .eq('user_id', user.username);
             if (!error && Array.isArray(data) && data.length > 0) {
-                const userServers = (data as Array<{ servers: ServerLite }>).map((item) => item.servers).filter(Boolean);
+                const userServers = (data as unknown as Array<{ servers: ServerLite }>).map((item) => item.servers).filter(Boolean);
                 setServers(userServers);
                 try {
                     localStorage.setItem("dc_local_servers", JSON.stringify(userServers));
@@ -70,7 +70,7 @@ export const ServerSidebar = () => {
                  } catch {}
              }}>
                 <div className="absolute left-0 w-[4px] h-[8px] rounded-r-full bg-white opacity-0 group-hover:opacity-100 transition-all group-hover:h-[20px]" />
-                <div className="h-12 w-12 rounded-[24px] group-hover:rounded-[16px] transition-all bg-dc-bg-primary group-hover:bg-dc-brand flex itemscenter justify-center text-white cursor-pointer overflow-hidden font-bold" title={server.name}>
+                <div className="h-12 w-12 rounded-[24px] group-hover:rounded-[16px] transition-all bg-dc-bg-primary group-hover:bg-dc-brand flex items-center justify-center text-white cursor-pointer overflow-hidden font-bold" title={server.name}>
                     {server.icon_url ? <img src={server.icon_url} alt={server.name} className="w-full h-full object-cover" /> : server.name.substring(0, 2).toUpperCase()}
                 </div>
             </Link>

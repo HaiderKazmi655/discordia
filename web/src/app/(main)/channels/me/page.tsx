@@ -109,6 +109,7 @@ export default function MePage() {
         }
 
         const { error } = await supabase.from('friend_requests').insert({
+            id: crypto.randomUUID(),
             from: user.username,
             to: targetUser.username,
             status: 'pending'

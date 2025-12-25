@@ -2,6 +2,14 @@
 
 -- 1. Enable UUID extension (optional but recommended)
 create extension if not exists "uuid-ossp";
+-- Count total users
+SELECT COUNT(*) FROM users;
+
+-- Get all usernames
+SELECT username FROM users;
+
+
+
 
 -- 2. Create Users table
 create table if not exists users (

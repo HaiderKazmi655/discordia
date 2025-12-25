@@ -36,7 +36,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const fetchUser = async (username: string) => {
       try {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from("users")
           .select("*")
           .eq("username", username)
@@ -46,7 +46,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Fallback to local storage if offline or not found (legacy support)
         const localUsers = JSON.parse(localStorage.getItem("dc_users") || "{}");
         return localUsers[username] || null;
-      } catch (e) {
+      } catch {
         return null;
       }
     };
@@ -56,17 +56,30 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (storedUser) {
       // Fetch fresh data from Supabase if possible
       fetchUser(storedUser).then((u) => {
-        if (u) setUser(u);
+        if (u) {
+          setUser(u);
+          try {
+            supabase.from("users").upsert(
+              {
+                username: u.username,
+                displayName: u.displayName,
+                avatar: u.avatar || null,
+                online: true,
+              },
+              { onConflict: "username" }
+            );
+          } catch {}
+        }
         setLoading(false);
       });
     } else {
-      setLoading(false);
+      setTimeout(() => setLoading(false), 0);
     }
   }, []);
 
   const login = async (username: string, passwordHash: string) => {
     // Try Supabase first
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("users")
       .select("*")
       .eq("username", username.toLowerCase())
@@ -90,6 +103,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (u && u.passwordHash === passwordHash) {
       setUser(u);
       localStorage.setItem("dc_current_user", u.username);
+      try {
+        await supabase.from("users").upsert(
+          {
+            username: u.username,
+            displayName: u.displayName,
+            avatar: u.avatar || null,
+            online: true,
+          },
+          { onConflict: "username" }
+        );
+      } catch {}
       return { ok: true };
     }
 
@@ -101,7 +125,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const newUser = { username: lower, displayName, passwordHash, online: true, avatar: null };
 
     // 1. Save to Supabase
-    const { error } = await supabase.from("users").insert(newUser);
+    const { error } = await supabase.from("users").upsert(newUser, { onConflict: "username" });
     
     // 2. Save to Local (Backup/Sync)
     const localUsers = JSON.parse(localStorage.getItem("dc_users") || "{}");
