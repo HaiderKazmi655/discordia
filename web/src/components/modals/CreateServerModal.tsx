@@ -92,6 +92,17 @@ export const CreateServerModal = ({ onClose }: { onClose: () => void }) => {
             type: 'text'
         }).select().single();
 
+        try {
+            const localServers = JSON.parse(localStorage.getItem("dc_local_servers") || "[]");
+            const idx = localServers.findIndex((x: any) => x.id === server.id);
+            const updatedServer = { id: server.id, name: server.name, owner_id: user.username, icon_url: server.icon_url || null };
+            if (idx >= 0) localServers[idx] = { ...localServers[idx], ...updatedServer }; else localServers.push(updatedServer);
+            localStorage.setItem("dc_local_servers", JSON.stringify(localServers));
+            const localChannels = JSON.parse(localStorage.getItem("dc_local_channels") || "{}");
+            localChannels[server.id] = [...(localChannels[server.id] || []), channel || { id: cid, server_id: server.id, name: 'general', type: 'text', created_at: Date.now() }];
+            localStorage.setItem("dc_local_channels", JSON.stringify(localChannels));
+        } catch {}
+
         setLoading(false);
         onClose();
         

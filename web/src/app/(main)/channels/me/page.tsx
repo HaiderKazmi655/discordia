@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { MeSidebar } from "@/components/layout/MeSidebar";
 import { useAuth } from "@/context/AuthContext";
+import type { User as DcUser } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
@@ -10,8 +11,9 @@ export default function MePage() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState("online");
     const [addFriendInput, setAddFriendInput] = useState("");
-    const [friendRequests, setFriendRequests] = useState<any[]>([]);
-    const [friends, setFriends] = useState<any[]>([]);
+    type FriendRequest = { id: string; from: string; to: string; status: 'pending' | 'accepted' | 'declined' };
+    const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
+    const [friends, setFriends] = useState<DcUser[]>([]);
     const [statusMsg, setStatusMsg] = useState("");
 
     // Fetch friend requests and friends
@@ -57,11 +59,29 @@ export default function MePage() {
         if(!user || !input) return;
         setStatusMsg("");
         
-        // Check if user exists by username OR displayName
-        const { data: targetUser } = await supabase.from('users')
+        const normalized = input.replace(/^@/, "").toLowerCase();
+        let targetUser: DcUser | null = null;
+        const { data: byUsername } = await supabase.from('users')
             .select('*')
-            .or(`username.ilike.${input.toLowerCase()},displayName.ilike.${input}`)
+            .eq('username', normalized)
             .maybeSingle();
+        if (byUsername) {
+            targetUser = byUsername;
+        } else {
+            const { data: byDisplay } = await supabase.from('users')
+                .select('*')
+                .ilike('displayName', `%${input}%`)
+                .limit(1);
+            if (byDisplay && byDisplay.length > 0) {
+                targetUser = byDisplay[0];
+            } else {
+                try {
+                    const usersMap = JSON.parse(localStorage.getItem("dc_users") || "{}");
+                    const localUser = usersMap[normalized];
+                    if (localUser) targetUser = localUser;
+                } catch {}
+            }
+        }
 
         if (!targetUser) {
             setStatusMsg("User not found. Check spelling!");
@@ -126,8 +146,7 @@ export default function MePage() {
         const { data: newDM } = await supabase.from('dms').insert({
             pair_a: user.username,
             pair_b: friendUsername,
-            user: user.username,
-            time: Date.now()
+            user: user.username
         }).select().single();
         
         if (newDM) {
@@ -192,7 +211,7 @@ export default function MePage() {
                                              {req.from !== user?.username && (
                                                 <div className="flex space-x-2">
                                                     <button onClick={() => handleRequest(req.id, 'accepted')} className="w-8 h-8 rounded-full bg-dc-bg-tertiary hover:bg-green-500 text-white flex items-center justify-center transition-colors">✓</button>
-                                                    <button onClick={() => handleRequest(req.id, 'declined')} className="w-8 h-8 rounded-full bg-dc-bg-tertiary hover:bg-red-500 text-white flex items-center justify-center transition-colors">×</button>
+                                                    <button onClick={() => req.id && handleRequest(req.id, 'declined')} className="w-8 h-8 rounded-full bg-dc-bg-tertiary hover:bg-red-500 text-white flex items-center justify-center transition-colors">×</button>
                                                 </div>
                                              )}
                                          </div>

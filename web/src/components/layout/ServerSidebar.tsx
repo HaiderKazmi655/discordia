@@ -25,6 +25,9 @@ export const ServerSidebar = () => {
             if (!error && Array.isArray(data) && data.length > 0) {
                 const userServers = data.map((item: any) => item.servers).filter(Boolean);
                 setServers(userServers);
+                try {
+                    localStorage.setItem("dc_local_servers", JSON.stringify(userServers));
+                } catch {}
             } else {
                 const localServers = JSON.parse(localStorage.getItem("dc_local_servers") || "[]");
                 setServers(localServers);

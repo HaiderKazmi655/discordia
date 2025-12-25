@@ -21,6 +21,13 @@ export const ChannelSidebar = ({ serverId }: { serverId: string }) => {
               const { data: server, error: sErr } = await supabase.from('servers').select('name').eq('id', serverId).maybeSingle();
               if (server && !sErr) {
                   setServerName(server.name);
+                  try {
+                      const localServers = JSON.parse(localStorage.getItem("dc_local_servers") || "[]");
+                      const idx = localServers.findIndex((x: any) => x.id === serverId);
+                      const merged = { ...(localServers[idx] || { id: serverId }), name: server.name };
+                      if (idx >= 0) localServers[idx] = merged; else localServers.push(merged);
+                      localStorage.setItem("dc_local_servers", JSON.stringify(localServers));
+                  } catch {}
               } else {
                   const localServers = JSON.parse(localStorage.getItem("dc_local_servers") || "[]");
                   const s = localServers.find((x: any) => x.id === serverId);
@@ -41,6 +48,11 @@ export const ChannelSidebar = ({ serverId }: { serverId: string }) => {
                   .order('created_at', { ascending: true });
               if (!error && Array.isArray(data) && data.length > 0) {
                   setChannels(data);
+                  try {
+                      const local = JSON.parse(localStorage.getItem("dc_local_channels") || "{}");
+                      local[serverId] = data;
+                      localStorage.setItem("dc_local_channels", JSON.stringify(local));
+                  } catch {}
               } else {
                   const local = JSON.parse(localStorage.getItem("dc_local_channels") || "{}");
                   setChannels(local[serverId] || []);
