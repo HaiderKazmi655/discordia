@@ -146,6 +146,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const logout = () => {
     setUser(null);
     localStorage.removeItem("dc_current_user");
+    try {
+      supabase.from("users").upsert(
+        {
+          username: user?.username || "",
+          displayName: user?.displayName || "",
+          avatar: user?.avatar || null,
+          online: false,
+        },
+        { onConflict: "username" }
+      );
+    } catch {}
     router.push("/login");
   };
 
