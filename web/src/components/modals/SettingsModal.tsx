@@ -88,7 +88,7 @@ export const SettingsModal = ({ onClose }: { onClose: () => void }) => {
                                 </div>
                                 <div>
                                     <div className="text-white text-xl font-bold">{user?.displayName}</div>
-                                    <div className="text-dc-text-muted text-sm">#{user?.username}</div>
+                                    <div className="text-dc-text-muted text-sm">UID: {user?.uid || "not set"}</div>
                                 </div>
                             </div>
                             <button className="bg-dc-brand text-white px-4 py-1.5 rounded text-sm font-medium hover:bg-indigo-600">
@@ -106,8 +106,8 @@ export const SettingsModal = ({ onClose }: { onClose: () => void }) => {
                             </div>
                             <div className="flex justify-between items-center">
                                 <div>
-                                    <div className="text-xs font-bold text-dc-text-muted uppercase mb-1">Username</div>
-                                    <div className="text-white">{user?.username}</div>
+                                    <div className="text-xs font-bold text-dc-text-muted uppercase mb-1">UID</div>
+                                    <div className="text-white">{user?.uid || "not set"}</div>
                                 </div>
                                 <button className="bg-dc-bg-secondary px-3 py-1.5 rounded text-white text-sm hover:bg-dc-bg-tertiary opacity-50 cursor-not-allowed">Edit</button>
                             </div>
