@@ -75,28 +75,84 @@ export const ServerSettingsModal = ({ serverId, onClose }: { serverId: string; o
 
     const invite = async () => {
         setInviteMsg("");
-        const uname = inviteUser.trim().toLowerCase();
-        if (!uname) return;
-        const { data: target } = await supabase.from("users").select("username").eq("username", uname).single();
-        if (!target) {
-            setInviteMsg("User not found");
+        const inputUid = inviteUser.trim().toLowerCase();
+        if (!inputUid || !user?.username) return;
+        let targetUsername: string | null = null;
+        try {
+            const { data } = await supabase.from("users").select("username, uid").eq("uid", inputUid).maybeSingle();
+            if (data?.username) targetUsername = data.username;
+        } catch {}
+        if (!targetUsername) {
+            try {
+                const uidMap = JSON.parse(localStorage.getItem("dc_uid_map") || "{}");
+                const uname = uidMap[inputUid];
+                if (uname) targetUsername = uname;
+            } catch {}
+        }
+        if (!targetUsername) {
+            setInviteMsg("UID not found");
             return;
         }
-        const { data: existing } = await supabase
-            .from("server_members")
+        // Only send DM invite if they're friends
+        const { data: fr } = await supabase
+            .from("friend_requests")
             .select("*")
-            .eq("server_id", serverId)
-            .eq("user_id", target.username)
+            .eq("status", "accepted")
+            .or(`and(from.eq.${user.username},to.eq.${targetUsername}),and(from.eq.${targetUsername},to.eq.${user.username})`)
             .maybeSingle();
-        if (existing) {
-            setInviteMsg("Already a member");
+        if (!fr) {
+            setInviteMsg("Invite only sent to friends");
             return;
         }
-        const { error } = await supabase.from("server_members").insert({ server_id: serverId, user_id: target.username });
-        if (error) {
-            setInviteMsg("Failed to invite");
-        } else {
-            setInviteMsg("Invited successfully");
+        // Create invite code
+        let inviteUrl = "";
+        try {
+            const { data } = await supabase.from("server_invites").insert({ server_id: serverId, created_by: user.username }).select().single();
+            const code = data?.code || "";
+            inviteUrl = `${window.location.origin}/invite/${code}`;
+        } catch {
+            const code = crypto.randomUUID();
+            const localInv = JSON.parse(localStorage.getItem("dc_local_invites") || "{}");
+            localInv[code] = { server_id: serverId, created_by: user.username, created_at: Date.now() };
+            localStorage.setItem("dc_local_invites", JSON.stringify(localInv));
+            inviteUrl = `${window.location.origin}/invite/${code}`;
+        }
+        // Get or create DM channel
+        const { data: existingDM } = await supabase
+            .from("dms")
+            .select("*")
+            .or(`and(pair_a.eq.${user.username},pair_b.eq.${targetUsername}),and(pair_a.eq.${targetUsername},pair_b.eq.${user.username})`)
+            .maybeSingle();
+        let dmId = existingDM?.id as string | undefined;
+        if (!dmId) {
+            const { data: newDM } = await supabase
+                .from("dms")
+                .insert({ pair_a: user.username, pair_b: targetUsername, user: user.username })
+                .select()
+                .single();
+            dmId = newDM?.id;
+        }
+        if (!dmId) {
+            setInviteMsg("Failed to prepare DM");
+            return;
+        }
+        // Send message with invite link
+        const ts = new Date().toISOString();
+        try {
+            await supabase.from("messages").insert({
+                channel_id: dmId,
+                user_id: user.username,
+                username: user.displayName,
+                content: `Server invite to "${name || serverId}": ${inviteUrl}`,
+                created_at: ts
+            });
+            setInviteMsg("Invite sent via DM");
+        } catch {
+            const local = JSON.parse(localStorage.getItem("dc_local_messages") || "{}");
+            const msg = { id: crypto.randomUUID(), channel_id: dmId, user_id: user.username, username: user.displayName, content: `Server invite to "${name || serverId}": ${inviteUrl}`, created_at: ts };
+            local[dmId] = [...(local[dmId] || []), msg];
+            localStorage.setItem("dc_local_messages", JSON.stringify(local));
+            setInviteMsg("Invite sent via DM");
         }
     };
     const copyInvite = async () => {
@@ -161,7 +217,7 @@ export const ServerSettingsModal = ({ serverId, onClose }: { serverId: string; o
                                 className="flex-1 bg-[#e3e5e8] dark:bg-[#202225] p-2.5 rounded text-[#2e3338] dark:text-dc-text-normal outline-none focus:ring-2 focus:ring-blue-400"
                                 value={inviteUser}
                                 onChange={(e) => setInviteUser(e.target.value)}
-                                placeholder="username"
+                                placeholder="UID"
                             />
                             <button onClick={invite} className="bg-dc-brand text-white px-4 rounded hover:bg-indigo-600">Invite</button>
                         </div>

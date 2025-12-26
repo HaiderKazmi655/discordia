@@ -8,6 +8,7 @@ export type User = {
   displayName: string;
   avatar?: string | null;
   online?: boolean;
+  uid?: string;
 };
 
 export type AuthContextType = {
@@ -42,10 +43,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           .eq("username", username)
           .single();
         
-        if (data) return data;
+        if (data) {
+          try {
+            const uidMap = JSON.parse(localStorage.getItem("dc_uid_map") || "{}");
+            if (!data.uid && uidMap[username]) {
+              data.uid = uidMap[username];
+            }
+          } catch {}
+          return data;
+        }
         // Fallback to local storage if offline or not found (legacy support)
         const localUsers = JSON.parse(localStorage.getItem("dc_users") || "{}");
-        return localUsers[username] || null;
+        const u = localUsers[username] || null;
+        if (u && !u.uid) {
+          try {
+            const uidMap = JSON.parse(localStorage.getItem("dc_uid_map") || "{}");
+            u.uid = uidMap[username];
+          } catch {}
+        }
+        return u;
       } catch {
         return null;
       }
@@ -90,6 +106,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // The previous code didn't seem to do strict server-side auth, just client-side check.
       // We'll trust the input for now to match legacy behavior, but strict auth is better.
       if (data.passwordHash === passwordHash) {
+        // Ensure uid exists
+        let uid = data.uid as string | undefined;
+        if (!uid) {
+          const uidMap = JSON.parse(localStorage.getItem("dc_uid_map") || "{}");
+          uid = uidMap[data.username];
+          if (!uid) {
+            uid = (crypto?.randomUUID?.() || Math.random().toString(36).slice(2));
+            uidMap[data.username] = uid;
+            localStorage.setItem("dc_uid_map", JSON.stringify(uidMap));
+          }
+          try {
+            await supabase.from("users").update({ uid }).eq("username", data.username);
+          } catch {}
+          data.uid = uid;
+        }
         setUser(data);
         localStorage.setItem("dc_current_user", data.username);
         return { ok: true };
@@ -101,6 +132,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const localUsers = JSON.parse(localStorage.getItem("dc_users") || "{}");
     const u = localUsers[username.toLowerCase()];
     if (u && u.passwordHash === passwordHash) {
+      // Ensure uid exists locally
+      let uid = u.uid as string | undefined;
+      const uidMap = JSON.parse(localStorage.getItem("dc_uid_map") || "{}");
+      if (!uid) {
+        uid = (crypto?.randomUUID?.() || Math.random().toString(36).slice(2));
+        uidMap[u.username] = uid;
+        localStorage.setItem("dc_uid_map", JSON.stringify(uidMap));
+        u.uid = uid;
+      } else if (!uidMap[u.username]) {
+        uidMap[u.username] = uid;
+        localStorage.setItem("dc_uid_map", JSON.stringify(uidMap));
+      }
       setUser(u);
       localStorage.setItem("dc_current_user", u.username);
       try {
@@ -110,6 +153,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             displayName: u.displayName,
             avatar: u.avatar || null,
             online: true,
+            uid,
           },
           { onConflict: "username" }
         );
@@ -122,15 +166,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const register = async (username: string, displayName: string, passwordHash: string) => {
     const lower = username.toLowerCase();
-    const newUser = { username: lower, displayName, passwordHash, online: true, avatar: null };
+    const uid = (crypto?.randomUUID?.() || Math.random().toString(36).slice(2));
+    const newUser = { username: lower, displayName, passwordHash, online: true, avatar: null, uid };
 
     // 1. Save to Supabase
     const { error } = await supabase.from("users").upsert(newUser, { onConflict: "username" });
+    if (error) {
+      try {
+        await supabase.from("users").upsert(
+          { username: lower, displayName, passwordHash, online: true, avatar: null },
+          { onConflict: "username" }
+        );
+      } catch {}
+    }
     
     // 2. Save to Local (Backup/Sync)
     const localUsers = JSON.parse(localStorage.getItem("dc_users") || "{}");
     localUsers[lower] = newUser;
     localStorage.setItem("dc_users", JSON.stringify(localUsers));
+    const uidMap = JSON.parse(localStorage.getItem("dc_uid_map") || "{}");
+    uidMap[lower] = uid;
+    localStorage.setItem("dc_uid_map", JSON.stringify(uidMap));
 
     if (error && error.code !== "23505") { // Ignore duplicate key if it's just a sync issue
        console.error("Supabase register error:", error);

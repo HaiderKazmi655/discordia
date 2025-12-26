@@ -75,22 +75,29 @@ export default function MePage() {
     if (!user?.username || !addFriendInput.trim()) return;
 
     setStatusMsg("");
-    const normalized = addFriendInput.trim().replace(/^@/, "").toLowerCase();
-
-    // Lookup user by username
-    const { data: byExact } = await supabase
-      .from("users")
-      .select("username, displayName")
-      .eq("username", normalized)
-      .maybeSingle();
-    let targetUser = byExact || null;
-    if (!targetUser) {
-      const { data: byIlike } = await supabase
+    const normalized = addFriendInput.trim().toLowerCase();
+    let targetUser: { username: string; displayName: string | null } | null = null;
+    try {
+      const { data } = await supabase
         .from("users")
-        .select("username, displayName")
-        .ilike("username", normalized)
-        .limit(1);
-      targetUser = byIlike?.[0] || null;
+        .select("username, displayName, uid")
+        .eq("uid", normalized)
+        .maybeSingle();
+      if (data) targetUser = data;
+    } catch {}
+    if (!targetUser) {
+      try {
+        const uidMap = JSON.parse(localStorage.getItem("dc_uid_map") || "{}");
+        const uname = uidMap[normalized];
+        if (uname) {
+          const { data } = await supabase
+            .from("users")
+            .select("username, displayName")
+            .eq("username", uname)
+            .maybeSingle();
+          if (data) targetUser = data;
+        }
+      } catch {}
     }
 
     if (!targetUser) {
@@ -233,7 +240,7 @@ export default function MePage() {
               <form onSubmit={sendFriendRequest} className="relative">
                 <input
                   className="w-full bg-dc-bg-secondary p-3 rounded-lg text-white placeholder-white/60 outline-none border border-dc-bg-modifier focus:border-blue-500 transition-colors"
-                  placeholder="Enter username"
+                  placeholder="Enter UID"
                   value={addFriendInput}
                   onChange={e => setAddFriendInput(e.target.value)}
                 />
