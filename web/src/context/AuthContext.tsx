@@ -70,9 +70,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Check local storage for session
     const storedUser = localStorage.getItem("dc_current_user");
     if (storedUser) {
-      // Fetch fresh data from Supabase if possible
-      fetchUser(storedUser).then((u) => {
+      fetchUser(storedUser).then(async (u) => {
         if (u) {
+          if (!u.uid) {
+            const uidMap = JSON.parse(localStorage.getItem("dc_uid_map") || "{}");
+            let uid = uidMap[u.username];
+            if (!uid) {
+              uid = (crypto?.randomUUID?.() || Math.random().toString(36).slice(2));
+              uidMap[u.username] = uid;
+              localStorage.setItem("dc_uid_map", JSON.stringify(uidMap));
+            }
+            try {
+              await supabase.from("users").update({ uid }).eq("username", u.username);
+            } catch {}
+            try {
+              const localUsers = JSON.parse(localStorage.getItem("dc_users") || "{}");
+              const existing = localUsers[u.username] || {};
+              localUsers[u.username] = { ...existing, uid };
+              localStorage.setItem("dc_users", JSON.stringify(localUsers));
+            } catch {}
+            u.uid = uid;
+          }
           setUser(u);
           try {
             supabase.from("users").upsert(
