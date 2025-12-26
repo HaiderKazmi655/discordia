@@ -48,6 +48,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             const uidMap = JSON.parse(localStorage.getItem("dc_uid_map") || "{}");
             if (!data.uid && uidMap[username]) {
               data.uid = uidMap[username];
+              const idx = JSON.parse(localStorage.getItem("dc_uid_index") || "{}");
+              idx[data.uid] = username;
+              localStorage.setItem("dc_uid_index", JSON.stringify(idx));
             }
           } catch {}
           return data;
@@ -59,6 +62,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           try {
             const uidMap = JSON.parse(localStorage.getItem("dc_uid_map") || "{}");
             u.uid = uidMap[username];
+            if (u.uid) {
+              const idx = JSON.parse(localStorage.getItem("dc_uid_index") || "{}");
+              idx[u.uid] = username;
+              localStorage.setItem("dc_uid_index", JSON.stringify(idx));
+            }
           } catch {}
         }
         return u;
@@ -80,6 +88,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               uidMap[u.username] = uid;
               localStorage.setItem("dc_uid_map", JSON.stringify(uidMap));
             }
+            const idx = JSON.parse(localStorage.getItem("dc_uid_index") || "{}");
+            idx[uid] = u.username;
+            localStorage.setItem("dc_uid_index", JSON.stringify(idx));
             try {
               await supabase.from("users").update({ uid }).eq("username", u.username);
             } catch {}
@@ -133,6 +144,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             uid = (crypto?.randomUUID?.() || Math.random().toString(36).slice(2));
             uidMap[data.username] = uid;
             localStorage.setItem("dc_uid_map", JSON.stringify(uidMap));
+            const idx = JSON.parse(localStorage.getItem("dc_uid_index") || "{}");
+            idx[uid] = data.username;
+            localStorage.setItem("dc_uid_index", JSON.stringify(idx));
           }
           try {
             await supabase.from("users").update({ uid }).eq("username", data.username);
@@ -158,9 +172,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         uidMap[u.username] = uid;
         localStorage.setItem("dc_uid_map", JSON.stringify(uidMap));
         u.uid = uid;
+        const idx = JSON.parse(localStorage.getItem("dc_uid_index") || "{}");
+        idx[uid] = u.username;
+        localStorage.setItem("dc_uid_index", JSON.stringify(idx));
       } else if (!uidMap[u.username]) {
         uidMap[u.username] = uid;
         localStorage.setItem("dc_uid_map", JSON.stringify(uidMap));
+        const idx = JSON.parse(localStorage.getItem("dc_uid_index") || "{}");
+        idx[uid] = u.username;
+        localStorage.setItem("dc_uid_index", JSON.stringify(idx));
       }
       setUser(u);
       localStorage.setItem("dc_current_user", u.username);
@@ -205,6 +225,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const uidMap = JSON.parse(localStorage.getItem("dc_uid_map") || "{}");
     uidMap[lower] = uid;
     localStorage.setItem("dc_uid_map", JSON.stringify(uidMap));
+    const idx = JSON.parse(localStorage.getItem("dc_uid_index") || "{}");
+    idx[uid] = lower;
+    localStorage.setItem("dc_uid_index", JSON.stringify(idx));
 
     if (error && error.code !== "23505") { // Ignore duplicate key if it's just a sync issue
        console.error("Supabase register error:", error);

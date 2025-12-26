@@ -87,8 +87,18 @@ export default function MePage() {
     } catch {}
     if (!targetUser) {
       try {
-        const uidMap = JSON.parse(localStorage.getItem("dc_uid_map") || "{}");
-        const uname = uidMap[normalized];
+        let idx = JSON.parse(localStorage.getItem("dc_uid_index") || "{}");
+        if (!idx || Object.keys(idx).length === 0) {
+          const map = JSON.parse(localStorage.getItem("dc_uid_map") || "{}");
+          const rebuilt: Record<string, string> = {};
+          Object.keys(map).forEach((uname) => {
+            const u = map[uname];
+            if (u) rebuilt[u] = uname;
+          });
+          localStorage.setItem("dc_uid_index", JSON.stringify(rebuilt));
+          idx = rebuilt;
+        }
+        const uname = idx[normalized];
         if (uname) {
           const { data } = await supabase
             .from("users")
